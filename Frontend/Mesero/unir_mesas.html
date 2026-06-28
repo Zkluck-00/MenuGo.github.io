@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MenuGo | Unir mesas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-[#f7f3ec] text-slate-900">
+  <main class="mx-auto w-full max-w-7xl px-4 py-5 lg:px-6">
+    <header class="mb-6 rounded-[28px] bg-gradient-to-br from-slate-950 to-slate-700 px-5 py-6 shadow-xl shadow-slate-900/20 md:px-8">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
+          <img src="../img/Log.png" alt="Logo MenuGo" class="h-20 w-20 rounded-full bg-white object-contain p-2 shadow-md" />
+          <div>
+            <p class="text-sm font-black uppercase tracking-wide text-white">Panel del mesero</p>
+            <h1 class="mt-1 text-3xl font-black leading-tight text-white md:text-4xl">Unir mesas</h1>
+            <p class="mt-2 max-w-2xl text-base font-medium text-white/90">
+              Agrupa mesas cuando llegan más clientes. Todas las mesas unidas funcionarán como una sola cuenta, pero el pago podrá dividirse después por platos, boleta o factura.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-2 lg:justify-end">
+          <a href="mesas.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Ver mesas</a>
+          <a href="pedidos.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Cuentas y pagos</a>
+          <a href="tomar_pedido.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Tomar pedido</a>
+          <a href="pago_cruzado.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Pago cruzado</a>
+          <button type="button" onclick="recargarUniones()" class="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-900/20 hover:bg-orange-600">Actualizar</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-[420px_minmax(0,1fr)]">
+      <form class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/5" onsubmit="crearUnionMesas(event)">
+        <div class="mb-5">
+          <p class="text-sm font-black uppercase tracking-wide text-orange-600">Crear grupo</p>
+          <h2 class="mt-1 text-2xl font-black text-slate-950">Selecciona las mesas</h2>
+          <p class="mt-2 text-sm font-semibold text-slate-500">Elige una mesa principal y una o más mesas secundarias. Las mesas en limpieza no se pueden unir.</p>
+        </div>
+
+        <label class="block">
+          <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Mesa principal</span>
+          <select id="mesa-principal" onchange="renderOpcionesMesasSecundarias()" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500"></select>
+        </label>
+
+        <div class="mt-4">
+          <span class="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">Mesas a unir</span>
+          <div id="mesas-secundarias" class="grid max-h-[360px] grid-cols-2 gap-2 overflow-y-auto rounded-3xl border border-slate-200 bg-slate-50 p-3 sm:grid-cols-3"></div>
+        </div>
+
+        <div class="mt-5 rounded-2xl bg-orange-50 p-4 text-sm font-semibold text-orange-800">
+          Al confirmar, los pedidos activos de las mesas seleccionadas se unirán bajo una sola cuenta. Los QR de esas mesas deberían apuntar a la misma sesión cuando luego se conecte backend.
+        </div>
+
+        <button type="submit" class="mt-5 w-full rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600">
+          Confirmar unión de mesas
+        </button>
+      </form>
+
+      <section class="space-y-5">
+        <div class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="text-sm font-black uppercase tracking-wide text-slate-500">Mesas disponibles</p>
+              <h2 class="mt-1 text-2xl font-black text-slate-950">Estado para unión</h2>
+            </div>
+            <div class="flex flex-wrap gap-2 text-xs font-black">
+              <span class="rounded-full bg-emerald-100 px-3 py-1.5 text-emerald-700">Libre</span>
+              <span class="rounded-full bg-orange-100 px-3 py-1.5 text-orange-700">Ocupada</span>
+              <span class="rounded-full bg-slate-200 px-3 py-1.5 text-slate-800">Unida</span>
+              <span class="rounded-full bg-purple-100 px-3 py-1.5 text-purple-700">Limpieza</span>
+            </div>
+          </div>
+          <div id="resumen-mesas-unir" class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"></div>
+        </div>
+
+        <div class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="text-sm font-black uppercase tracking-wide text-slate-500">Grupos activos</p>
+              <h2 class="mt-1 text-2xl font-black text-slate-950">Mesas unidas</h2>
+            </div>
+            <p class="text-sm font-semibold text-slate-500">Puedes desunir solo si no hay pagos pendientes.</p>
+          </div>
+          <div id="grupos-activos" class="mt-4 space-y-3"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="../js/config.js"></script>
+<script src="../js/personal-auth.js"></script>
+  <script src="../js/unir-mesas.js"></script>
+</body>
+</html>

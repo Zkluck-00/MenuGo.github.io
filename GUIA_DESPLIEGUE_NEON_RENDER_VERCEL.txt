@@ -1,0 +1,52 @@
+GUIA RAPIDA PARA SUBIR MENUGO A INTERNET
+
+1. NEON - BASE DE DATOS
+   - Entra a Neon > SQL Editor.
+   - Abre este archivo del proyecto:
+     database/MenuGo_BD_Completa_NEON.sql
+   - Copia todo el contenido y ejecútalo en Neon.
+   - Verifica:
+     SELECT COUNT(*) FROM mesas;
+     SELECT COUNT(*) FROM platos;
+     SELECT COUNT(*) FROM bebidas;
+
+2. RENDER - BACKEND
+   - New Web Service.
+   - Repositorio: tu GitHub.
+   - Root Directory: backend
+   - Build Command: npm install
+   - Start Command: npm start
+   - Health Check Path: /api/health
+   - Variables de entorno:
+     DATABASE_URL=tu connection string de Neon
+     NODE_ENV=production
+     FRONTEND_URL=https://TU-FRONTEND.vercel.app
+     FRONTEND_URLS=https://TU-FRONTEND.vercel.app,http://localhost:5500,http://localhost:4000
+     FRONTEND_CLIENTE_URL=https://TU-FRONTEND.vercel.app
+
+3. VERCEL - FRONTEND
+   - New Project.
+   - Repositorio: tu GitHub.
+   - Root Directory: Frontend
+   - Framework Preset: Other
+   - Build Command: dejar vacío
+   - Output Directory: .
+   - Install Command: dejar vacío
+
+4. ANTES DE SUBIR FRONTEND
+   - Edita Frontend/js/config.js
+   - Cambia:
+     https://COLOCA-AQUI-TU-BACKEND-DE-RENDER.onrender.com/api
+   - Por tu URL real de Render, por ejemplo:
+     https://menugo-backend.onrender.com/api
+
+5. QR DE MESAS
+   - Cuando Vercel te dé la URL final, abre QR_MESAS_URLS.txt.
+   - Reemplaza TU-FRONTEND.vercel.app por tu dominio real de Vercel.
+   - Genera los QR con esas 20 URLs.
+
+NO SUBIR A GITHUB:
+   - .env real
+   - node_modules
+   - contraseñas
+   - DATABASE_URL real en archivos públicos

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MenuGo | Tomar pedido</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-[#f7f3ec] text-slate-900">
+  <main class="mx-auto w-full max-w-7xl px-4 pt-5 pb-32 lg:px-6 lg:pb-8">
+    <header class="mb-6 rounded-[28px] bg-gradient-to-br from-slate-950 to-slate-700 px-5 py-6 shadow-xl shadow-slate-900/20 md:px-8">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
+          <img src="../img/Log.png" alt="Logo MenuGo" class="h-20 w-20 rounded-full bg-white object-contain p-2 shadow-md" />
+          <div>
+            <p class="text-sm font-black uppercase tracking-wide text-white">Panel del mesero</p>
+            <h1 class="mt-1 text-3xl font-black leading-tight text-white md:text-4xl">Tomar pedido manual</h1>
+            <p class="mt-2 max-w-2xl text-base font-medium text-white/90">
+              Selecciona mesa, elige platos, personaliza cada preparación y envía el pedido a cocina como orden tomada por mesero.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-2 lg:justify-end">
+          <a href="mesas.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Ver mesas</a>
+          <a href="unir_mesas.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Unir mesas</a>
+          <a href="pago_cruzado.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Pago cruzado</a>
+          <a href="pedidos.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Cuentas y pagos</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="mb-5 grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div class="space-y-4">
+        <section class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-[220px_minmax(0,1fr)] md:items-end">
+            <div>
+              <label for="mesa-select" class="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">Número de mesa</label>
+              <select id="mesa-select" class="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-base font-black text-slate-950 outline-none focus:border-orange-500 focus:ring-4 focus:ring-orange-100" onchange="cambiarMesaPedido()"></select>
+            </div>
+            <div class="rounded-2xl bg-slate-50 p-4">
+              <p class="text-sm font-bold text-slate-600">Este pedido se registrará como <span class="font-black text-slate-950">origen: Mesero</span> y llegará a cocina igual que un pedido por QR.</p>
+              <p class="mt-1 text-xs font-semibold text-slate-500">Útil para clientes sin celular, sin batería o que prefieren atención tradicional.</p>
+            </div>
+          </div>
+        </section>
+
+        <nav class="sticky top-0 z-30 rounded-3xl border border-slate-200 bg-white/95 p-3 shadow-sm backdrop-blur">
+          <div id="categorias-container" class="flex gap-2 overflow-x-auto pb-1"></div>
+        </nav>
+
+        <section>
+          <h2 id="titulo-categoria" class="mb-4 text-2xl font-black text-slate-950">Todos los platos</h2>
+          <div id="platos-container" class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3"></div>
+        </section>
+      </div>
+
+      <aside id="panel-pedido" class="fixed bottom-20 left-4 right-4 z-40 hidden max-h-[72vh] flex-col rounded-3xl border border-slate-200 bg-white p-4 shadow-2xl shadow-slate-900/20 lg:sticky lg:top-5 lg:left-auto lg:right-auto lg:z-auto lg:flex lg:max-h-[calc(100vh-40px)]">
+        <div class="mb-3 flex items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-black uppercase tracking-wide text-orange-600">Pedido temporal</p>
+            <h2 class="text-xl font-black text-slate-950">Mesa <span id="mesa-panel">-</span></h2>
+            <p class="text-sm text-slate-500">Agrega platos antes de enviarlo a cocina.</p>
+          </div>
+          <button type="button" onclick="togglePedidoTemporal()" class="rounded-full border border-slate-300 px-3 py-1 text-sm font-bold text-slate-600 hover:bg-slate-100 lg:hidden">Cerrar</button>
+        </div>
+
+        <div id="lista-pedido-temporal" class="max-h-[52vh] overflow-y-auto pr-1"></div>
+
+        <div class="mt-4 border-t border-slate-200 pt-4">
+          <div class="flex items-center justify-between text-xl font-black text-slate-950">
+            <span>Total</span>
+            <span>S/ <span id="total-pedido-temporal">0.00</span></span>
+          </div>
+          <div class="mt-3 grid grid-cols-1 gap-2">
+            <button type="button" onclick="confirmarPedidoMesero()" class="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600">Enviar pedido a cocina</button>
+            <button type="button" onclick="vaciarPedidoTemporal()" class="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-black text-red-700 hover:bg-red-100">Vaciar pedido</button>
+          </div>
+        </div>
+      </aside>
+    </section>
+  </main>
+
+  <button id="boton-pedido-mobile" type="button" onclick="togglePedidoTemporal()" class="fixed bottom-4 left-4 right-4 z-40 rounded-2xl bg-slate-950 px-4 py-4 text-center text-sm font-black text-white shadow-2xl shadow-slate-900/30 lg:hidden">
+    Pedido temporal · S/ <span id="total-pedido-mobile">0.00</span>
+  </button>
+
+  <script src="../js/config.js"></script>
+<script src="../js/personal-auth.js"></script>
+  <script src="../js/platos.js"></script>
+  <script src="../js/tomar-pedido.js"></script>
+</body>
+</html>

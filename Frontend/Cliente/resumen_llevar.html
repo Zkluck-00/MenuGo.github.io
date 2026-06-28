@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MenuGo | Resumen para llevar</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen bg-[#f7f3ec] text-slate-900">
+  <main id="contenido-resumen" class="mx-auto w-full max-w-6xl px-4 py-6">
+    <header class="mb-6 rounded-[28px] bg-gradient-to-br from-orange-600 to-slate-900 p-6 shadow-xl shadow-orange-900/20">
+      <div class="flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
+        <img src="../img/Log.png" alt="Logo MenuGo" class="h-20 w-20 rounded-full bg-white object-contain p-2" />
+        <div>
+          <p class="text-sm font-black uppercase tracking-wide text-white">Pedido para llevar</p>
+          <h1 class="mt-1 text-3xl font-black text-white">Resumen y método de pago</h1>
+          <p class="mt-2 text-white/90">Revisa tu pedido y selecciona cómo realizarás el pago.</p>
+        </div>
+      </div>
+    </header>
+
+    <section class="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <div class="space-y-4">
+        <div class="rounded-3xl bg-white p-5 shadow-md shadow-slate-900/5">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 class="text-xl font-black text-slate-950">Detalle del pedido</h2>
+              <p class="text-sm font-semibold text-slate-500">Cliente: <span id="cliente-resumen">Cliente</span></p>
+            </div>
+            <a href="MenuParaLlevar.html" class="rounded-2xl border border-slate-300 px-4 py-2 text-center text-sm font-black text-slate-700 hover:bg-slate-50">Seguir agregando</a>
+          </div>
+        </div>
+
+        <div id="lista-resumen" class="space-y-3"></div>
+      </div>
+
+      <aside class="h-fit rounded-3xl bg-white p-5 shadow-md shadow-slate-900/5 lg:sticky lg:top-6">
+        <h2 class="text-xl font-black text-slate-950">Pago</h2>
+        <p class="mt-2 text-sm text-slate-500">
+          Si pagas con app digital, el pedido quedará como pago cancelado. Si pagas en efectivo, quedará pendiente hasta recoger.
+        </p>
+
+        <div class="mt-5 space-y-3">
+          <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 p-3 hover:bg-slate-50">
+            <input type="radio" name="metodoPago" value="Yape" class="h-4 w-4 accent-orange-500" checked>
+            <span class="font-bold text-slate-800">Yape</span>
+          </label>
+          <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 p-3 hover:bg-slate-50">
+            <input type="radio" name="metodoPago" value="Tarjeta" class="h-4 w-4 accent-orange-500">
+            <span class="font-bold text-slate-800">Tarjeta</span>
+          </label>
+          <label class="flex cursor-pointer items-center gap-3 rounded-2xl border border-slate-200 p-3 hover:bg-slate-50">
+            <input type="radio" name="metodoPago" value="Efectivo al recoger" class="h-4 w-4 accent-orange-500">
+            <span class="font-bold text-slate-800">Efectivo al recoger</span>
+          </label>
+        </div>
+
+        <div id="box-pago-digital" class="mt-4"></div>
+
+        <div id="box-efectivo" class="mt-4 hidden rounded-2xl bg-amber-50 p-4">
+          <label for="pago-con" class="block text-sm font-black text-amber-800">¿Con cuánto pagará?</label>
+          <input id="pago-con" type="number" min="0" step="0.10" placeholder="Ejemplo: 50"
+            class="mt-2 w-full rounded-xl border border-amber-200 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-amber-400">
+          <p class="mt-2 text-sm font-bold text-amber-800">Vuelto estimado: S/ <span id="vuelto-estimado">0.00</span></p>
+        </div>
+
+        <div class="mt-5 border-t border-slate-200 pt-5">
+          <div class="flex items-center justify-between text-2xl font-black text-slate-950">
+            <span>Total</span>
+            <span>S/ <span id="total-resumen">0.00</span></span>
+          </div>
+        </div>
+
+        <button type="button" onclick="confirmarPedidoLlevar()"
+          class="mt-5 w-full rounded-2xl bg-orange-500 px-4 py-3 font-black text-white shadow-lg shadow-orange-500/20 transition hover:bg-orange-600">
+          Confirmar pedido
+        </button>
+      </aside>
+    </section>
+  </main>
+
+  <script src="../js/config.js"></script>
+<script src="../js/resumen-llevar.js"></script>
+</body>
+
+</html>

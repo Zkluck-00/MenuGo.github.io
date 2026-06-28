@@ -1,0 +1,24 @@
+CAMBIOS APLICADOS - QR DE MESAS
+
+1. Cada mesa ahora usa URL con mesa + token:
+   /Cliente/index.html?mesa=1&token=MG-MESA-01-...
+
+2. Backend:
+   - backend/src/config/qrMesas.js
+   - backend/src/app.js
+   - backend/src/controllers/mesas.controller.js
+   - backend/src/routes/mesas.routes.js
+   - backend/src/controllers/pedidos.controller.js
+
+3. Frontend:
+   - Frontend/Cliente/index.html valida el QR antes de permitir 'Consumir aqui'.
+   - Frontend/js/cliente.js conserva mesa y token.
+   - Frontend/js/resumen-pedido.js envia qr_token al backend.
+   - Frontend/js/pedido-actual.js conserva token al agregar mas platos.
+
+4. Base de datos:
+   - database/qr_mesas_setup.sql agrega qr_token y qr_activo en mesas.
+   - El backend tambien intenta preparar automaticamente los QR al iniciar.
+
+5. URLs de los 20 QR:
+   - QR_MESAS_URLS.txt

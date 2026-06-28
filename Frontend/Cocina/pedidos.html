@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MenuGo | Cocina</title>
+
+    <!-- Tailwind CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen bg-slate-100">
+
+    <div class="max-w-7xl mx-auto px-4 py-6">
+
+        <!-- Header -->
+        <header class="bg-white rounded-3xl shadow-md p-6 mb-6">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+                <div class="flex items-center gap-4">
+                    <img src="../img/Log.png" alt="Logo MenuGo" class="w-20 h-20 object-contain">
+                    <div>
+                        <h1 class="text-3xl font-extrabold text-gray-800">Panel de Cocina</h1>
+                        <p class="text-gray-500">Pedidos recibidos para preparación</p>
+                    </div>
+                </div>
+
+                <div class="bg-orange-100 text-orange-700 px-4 py-3 rounded-2xl font-semibold text-sm">
+                    Cuando marques un pedido como listo, recién será visible para el mesero.
+                </div>
+
+            </div>
+        </header>
+
+        <!-- Filtros -->
+        <section class="bg-white rounded-3xl shadow-md p-4 mb-6">
+            <div class="flex flex-wrap gap-3 justify-center md:justify-start">
+                <button onclick="filtrarPedidos('todos')"
+                    class="px-5 py-2 rounded-full bg-gray-800 text-white font-semibold hover:bg-gray-700 transition">
+                    Todos
+                </button>
+
+                <button onclick="filtrarPedidos('Pendiente')"
+                    class="px-5 py-2 rounded-full bg-gray-200 text-gray-700 font-semibold hover:bg-gray-300 transition">
+                    Pendientes
+                </button>
+
+                <button onclick="filtrarPedidos('En preparación')"
+                    class="px-5 py-2 rounded-full bg-yellow-100 text-yellow-700 font-semibold hover:bg-yellow-200 transition">
+                    En preparación
+                </button>
+
+                <button onclick="filtrarPedidos('listos')"
+                    class="px-5 py-2 rounded-full bg-green-100 text-green-700 font-semibold hover:bg-green-200 transition">
+                    Listos
+                </button>
+            </div>
+        </section>
+
+        <!-- Pedidos -->
+        <main id="contenedor-pedidos" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+            <!-- Los pedidos se cargan con cocina.js -->
+        </main>
+
+    </div>
+<script src="../js/config.js"></script>
+<script src="../js/tiempo-real.js"></script>
+    <script src="../js/personal-auth.js"></script>
+    <script src="../js/cocina.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MenuGo | Pago cruzado</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen bg-[#f7f3ec] text-slate-900">
+  <main class="mx-auto w-full max-w-7xl px-4 py-5 lg:px-6">
+    <header
+      class="mb-6 rounded-[28px] bg-gradient-to-br from-slate-950 to-slate-700 px-5 py-6 shadow-xl shadow-slate-900/20 md:px-8">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
+          <img src="../img/Log.png" alt="Logo MenuGo"
+            class="h-20 w-20 rounded-full bg-white object-contain p-2 shadow-md" />
+          <div>
+            <p class="text-sm font-black uppercase tracking-wide text-white">Panel del mesero</p>
+            <h1 class="mt-1 text-3xl font-black leading-tight text-white md:text-4xl">Pago cruzado entre mesas</h1>
+            <p class="mt-2 max-w-2xl text-base font-medium text-white/90">
+              Registra cuando una mesa paga toda o parte de la cuenta de otra mesa. Puedes seleccionar platos
+              específicos, usar distintos métodos y emitir boleta o factura.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-2 lg:justify-end">
+          <a href="mesas.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Ver
+            mesas</a>
+          <a href="pedidos.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Cuentas
+            y pagos</a>
+          <a href="tomar_pedido.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Tomar
+            pedido</a>
+          <a href="unir_mesas.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Unir
+            mesas</a>
+          <button type="button" onclick="recargarPagoCruzado()"
+            class="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-900/20 hover:bg-orange-600">Actualizar</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="mb-5 grid grid-cols-1 gap-4 md:grid-cols-4">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Cuentas activas</p>
+        <p id="stat-cuentas-cruzadas" class="mt-2 text-4xl font-black text-slate-950">0</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Cuentas con deuda</p>
+        <p id="stat-deudas-cruzadas" class="mt-2 text-4xl font-black text-orange-600">0</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Pendiente total</p>
+        <p class="mt-2 text-4xl font-black text-slate-950">S/ <span id="stat-pendiente-cruzado">0.00</span></p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Pagos cruzados</p>
+        <p id="stat-pagos-cruzados" class="mt-2 text-4xl font-black text-blue-600">0</p>
+      </article>
+    </section>
+
+    <section class="grid grid-cols-1 gap-5 xl:grid-cols-[430px_minmax(0,1fr)]">
+      <aside class="space-y-5">
+        <form class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/5"
+          onsubmit="registrarPagoCruzado(event)">
+          <div class="mb-5">
+            <p class="text-sm font-black uppercase tracking-wide text-orange-600">Registrar pago</p>
+            <h2 class="mt-1 text-2xl font-black text-slate-950">¿Quién paga y qué cuenta?</h2>
+            <p class="mt-2 text-sm font-semibold text-slate-500">Elige una mesa pagadora y una mesa beneficiada. Después
+              selecciona los platos que serán pagados.</p>
+          </div>
+
+          <label class="block">
+            <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Mesa que paga</span>
+            <select id="mesa-pagadora-cruzada"
+              class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500"></select>
+          </label>
+
+          <label class="mt-4 block">
+            <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Mesa que le pagaran la cuenta </span>
+            <select id="mesa-beneficiada-cruzada" onchange="renderItemsBeneficiada()"
+              class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500"></select>
+          </label>
+
+          <label class="mt-4 block">
+            <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Método de pago</span>
+            <select id="metodo-pago-cruzado" onchange="actualizarCamposMetodoCruzado()"
+              class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500">
+              <option value="Efectivo">Efectivo</option>
+              <option value="Yape">Yape</option>
+              <option value="Tarjeta">Tarjeta</option>
+            </select>
+          </label>
+          
+          <label class="mt-4 block">
+            <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Comprobante</span>
+            <select id="comprobante-cruzado" onchange="actualizarCamposComprobanteCruzado()"
+              class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500">
+              <option value="Sin comprobante">Sin comprobante</option>
+              <option value="Boleta">Boleta</option>
+              <option value="Factura">Factura</option>
+            </select>
+          </label>
+
+          <div id="campos-comprobante-cruzado" class="mt-4 hidden rounded-2xl bg-slate-50 p-4">
+            <label class="block">
+              <span id="label-doc-cruzado"
+                class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">DNI</span>
+              <input id="documento-cruzado"
+                class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500"
+                placeholder="Documento" />
+            </label>
+            <label class="mt-3 block">
+              <span id="label-nombre-cruzado"
+                class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Nombre</span>
+              <input id="nombre-comprobante-cruzado"
+                class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500"
+                placeholder="Nombre del cliente" />
+            </label>
+          </div>
+
+          <div class="mt-5 rounded-3xl border border-slate-200 bg-slate-50 p-4">
+            <p class="text-xs font-black uppercase tracking-wide text-slate-500">Total seleccionado</p>
+            <p class="mt-1 text-4xl font-black text-slate-950">S/ <span id="total-cruzado">0.00</span></p>
+          </div>
+          <div id="simulacion-pago-cruzado" class="mt-4"></div>
+          <button type="submit"
+            class="mt-5 w-full rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600">
+            Registrar pago cruzado
+          </button>
+          <p class="mt-3 text-xs font-semibold text-slate-500">Para pagos mixtos, registra primero algunos platos con un
+            método y luego repite el proceso con otros platos.</p>
+        </form>
+      </aside>
+
+      <section class="space-y-5">
+        <div class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="text-sm font-black uppercase tracking-wide text-slate-500">Platos pendientes</p>
+              <h2 class="mt-1 text-2xl font-black text-slate-950">Cuenta beneficiada</h2>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="seleccionarItemsCruzados('todos')"
+                class="rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">Seleccionar todo</button>
+              <button type="button" onclick="seleccionarItemsCruzados('comida')"
+                class="rounded-full border border-slate-300 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50">Solo
+                comida</button>
+              <button type="button" onclick="seleccionarItemsCruzados('bebida')"
+                class="rounded-full border border-slate-300 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50">Solo
+                bebidas</button>
+              <button type="button" onclick="seleccionarItemsCruzados('ninguno')"
+                class="rounded-full border border-slate-300 px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-50">Limpiar</button>
+            </div>
+          </div>
+          <div id="items-beneficiada" class="mt-4 overflow-hidden rounded-3xl border border-slate-200"></div>
+        </div>
+
+        <div class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+          <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p class="text-sm font-black uppercase tracking-wide text-slate-500">Historial</p>
+              <h2 class="mt-1 text-2xl font-black text-slate-950">Pagos cruzados registrados</h2>
+            </div>
+            <p class="text-sm font-semibold text-slate-500">Sirve como auditoría para saber qué mesa pagó cada plato.
+            </p>
+          </div>
+          <div id="historial-pagos-cruzados" class="mt-4 space-y-3"></div>
+        </div>
+      </section>
+    </section>
+  </main>
+<script src="../js/config.js"></script>
+<script src="../js/tiempo-real.js"></script>
+  <script src="../js/personal-auth.js"></script>
+  <script src="../js/pago-cruzado.js"></script>
+</body>
+
+</html>

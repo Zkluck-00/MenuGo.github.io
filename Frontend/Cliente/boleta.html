@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MenuGo | Boleta</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen bg-gradient-to-br from-orange-50 to-sky-100 px-4 py-6 text-slate-900">
+  <main class="mx-auto max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+    <!-- Encabezado -->
+    <section class="border-b border-dashed border-slate-400 pb-4 text-center">
+      <img src="../img/Log.png" alt="Logo MenuGo" class="mx-auto mb-2 w-28" />
+      <h1 class="text-2xl font-extrabold text-slate-800">MenuGo</h1>
+      <p class="text-sm text-slate-500">RUC: 20715630211</p>
+      <p class="text-sm text-slate-500">Dirección: Dirección: Av. Miraflores 412, Urb. Miraflores, Castilla, Piura.</p>
+      <p class="text-sm text-slate-500">Teléfono: +51 921 800 593</p>
+    </section>
+   <!-- Titulo -->
+     <section class="border-b border-dashed border-slate-400 py-4 text-center">
+      <h2 class="text-lg font-extrabold text-slate-800">BOLETA DE VENTA</h2>
+      <p class="text-sm text-slate-500">N° <span id="numero-boleta">B001-000001</span></p>
+    </section>
+    
+   <!-- Datos del cliente -->
+    <section class="space-y-1 border-b border-dashed border-slate-400 py-4 text-sm text-slate-700">
+      <div class="flex justify-between gap-4"><span class="font-bold">Cliente:</span><span id="cliente-boleta" class="text-right">---</span></div>
+      <div class="flex justify-between gap-4"><span class="font-bold">Documento:</span><span id="documento-boleta">-----</span></div>
+      <div class="flex justify-between gap-4"><span class="font-bold">Tipo:</span><span id="tipo-consumo">---</span></div>
+      <div class="flex justify-between gap-4"><span class="font-bold">Mesa:</span><span id="mesa-pedido">No aplica</span></div>
+      <div class="flex justify-between gap-4"><span class="font-bold">Método:</span><span id="metodo-pago">---</span></div>
+      <div class="flex justify-between gap-4"><span class="font-bold">Estado:</span><span id="estado-pago" class="font-black text-emerald-600">Pagado</span></div>
+      <div class="flex justify-between gap-4"><span class="font-bold">Fecha:</span><span id="fecha-boleta">---</span></div>
+      <div class="flex justify-between gap-4"><span class="font-bold">Hora:</span><span id="hora-boleta">---</span></div>
+    </section>
+
+    <!-- Detalle -->
+    <section class="border-b border-dashed border-slate-400 py-4">
+      <div class="mb-2 grid grid-cols-[1fr_45px_75px] gap-2 border-b pb-2 text-xs font-extrabold text-slate-700">
+        <span>DESCRIPCIÓN</span><span class="text-center">CANT.</span><span class="text-right">TOTAL</span>
+      </div>
+      <div id="detalle-productos" class="space-y-2"></div>
+    </section>
+
+    <section class="space-y-2 border-b border-dashed border-slate-400 py-4">
+      <div class="flex justify-between text-sm text-slate-700"><span>Total gravado</span><span>S/ <span id="subtotal-boleta">0.00</span></span></div>
+      <div class="flex justify-between text-sm text-slate-700"><span>I.G.V.</span><span>S/ <span id="igv-boleta">0.00</span></span></div>
+      <div class="flex justify-between pt-2 text-xl font-extrabold text-orange-500"><span>Total</span><span>S/ <span id="total-boleta">0.00</span></span></div>
+    </section>
+
+    <section class="border-b border-dashed border-slate-400 py-4">
+      <h3 class="mb-2 text-sm font-bold text-slate-700">Observaciones:</h3>
+      <p id="observaciones-boleta" class="rounded-xl bg-slate-50 p-3 text-sm italic text-slate-500">Ninguna</p>
+    </section>
+
+    <section class="py-4 text-center">
+      <p class="font-bold text-slate-800">Gracias por tu compra</p>
+      <p class="text-xs text-slate-500">Representación simulada de boleta para fines académicos.</p>
+    </section>
+
+    <section class="space-y-3">
+      <button type="button" onclick="window.print()" class="w-full rounded-2xl bg-orange-500 py-3 font-extrabold text-white shadow-md transition hover:bg-orange-600">Imprimir boleta</button>
+      <a href="index.html" class="block w-full rounded-2xl border border-slate-300 py-3 text-center font-bold text-slate-700 transition hover:bg-slate-100">Volver al inicio</a>
+    </section>
+  </main>
+
+  <script src="../js/config.js"></script>
+<script src="../js/boleta.js"></script>
+</body>
+
+</html>

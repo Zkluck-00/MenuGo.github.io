@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MenuGo | Administrar menú</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-[#f7f3ec] text-slate-900">
+  <main class="mx-auto w-full max-w-7xl px-4 py-5 lg:px-6">
+    <header class="mb-6 rounded-[28px] bg-gradient-to-br from-slate-950 to-slate-700 px-5 py-6 shadow-xl shadow-slate-900/20 md:px-8">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
+          <img src="../img/Log.png" alt="Logo MenuGo" class="h-20 w-20 rounded-full bg-white object-contain p-2 shadow-md" />
+          <div>
+            <p class="text-sm font-black uppercase tracking-wide text-orange-200">Panel de administrador</p>
+            <h1 class="mt-1 text-3xl font-black leading-tight text-white md:text-4xl">Gestión del menú</h1>
+            <p class="mt-2 max-w-3xl text-base font-medium text-white/90">
+              Gestiona el menú del día, registra nuevos productos y retira platos que ya no estarán disponibles.
+            </p>
+          </div>
+        </div>
+        <div class="flex flex-wrap justify-center gap-2 lg:justify-end">
+          <a href="dashboard.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">
+            Ver dashboard
+          </a>
+          <a href="trabajadores.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">
+            Trabajadores
+          </a>
+          <button type="button" onclick="cerrarSesionAdmin()" class="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-900/20 hover:bg-orange-600">
+            Salir
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="mb-5 grid grid-cols-1 gap-4 md:grid-cols-3">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-sm font-black uppercase tracking-wide text-slate-500">Productos activos</p>
+        <p id="stat-productos-activos" class="mt-2 text-4xl font-black text-slate-950">0</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-sm font-black uppercase tracking-wide text-slate-500">Menú del día</p>
+        <p id="stat-menu-dia" class="mt-2 text-4xl font-black text-orange-600">0</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-sm font-black uppercase tracking-wide text-slate-500">Nuevos registrados</p>
+        <p id="stat-productos-nuevos" class="mt-2 text-4xl font-black text-emerald-600">0</p>
+      </article>
+    </section>
+
+    <section class="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.3fr]">
+      <article class="rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
+        <h2 class="text-2xl font-black text-orange-900">Añadir producto</h2>
+        <p class="mt-1 text-sm font-semibold text-orange-800">
+          Registra un plato o bebida para que aparezca dentro de la carta administrada.
+        </p>
+
+        <form id="form-producto-admin" class="mt-5 space-y-4">
+          <div>
+            <label for="producto-nombre" class="mb-1 block text-xs font-black uppercase tracking-wide text-orange-700">Nombre del producto</label>
+            <input id="producto-nombre" type="text" required class="w-full rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" placeholder="Ej. Ceviche especial" />
+          </div>
+
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div>
+              <label for="producto-categoria" class="mb-1 block text-xs font-black uppercase tracking-wide text-orange-700">Categoría</label>
+              <select id="producto-categoria" required class="w-full rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500"></select>
+            </div>
+            <div>
+              <label for="producto-precio" class="mb-1 block text-xs font-black uppercase tracking-wide text-orange-700">Precio</label>
+              <input id="producto-precio" type="number" min="0.1" step="0.1" required class="w-full rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" placeholder="0.00" />
+            </div>
+          </div>
+
+          <div>
+            <label for="producto-descripcion" class="mb-1 block text-xs font-black uppercase tracking-wide text-orange-700">Descripción</label>
+            <textarea id="producto-descripcion" rows="3" required class="w-full resize-none rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" placeholder="Describe brevemente el producto"></textarea>
+          </div>
+
+          <div>
+            <label for="producto-imagen" class="mb-1 block text-xs font-black uppercase tracking-wide text-orange-700">URL de imagen</label>
+            <input id="producto-imagen" type="url" class="w-full rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" placeholder="https://..." />
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label class="flex cursor-pointer items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-700 ring-1 ring-orange-100">
+              <input id="producto-para-llevar" type="checkbox" class="h-4 w-4 accent-orange-500" checked />
+              Disponible para llevar
+            </label>
+            <label class="flex cursor-pointer items-center gap-3 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-700 ring-1 ring-orange-100">
+              <input id="producto-menu-dia" type="checkbox" class="h-4 w-4 accent-orange-500" checked />
+              Agregar al menú del día
+            </label>
+          </div>
+
+          <button type="submit" class="w-full rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600">
+            Guardar producto
+          </button>
+        </form>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h2 class="text-2xl font-black text-slate-900">Menú del día</h2>
+            <p class="text-sm font-semibold text-slate-500">Marca los productos que estarán visibles en la carta de hoy.</p>
+          </div>
+          <div class="flex flex-col gap-2 sm:flex-row">
+            <input id="buscar-producto-admin" type="search" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" placeholder="Buscar producto" />
+            <select id="filtro-categoria-admin" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500"></select>
+          </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap gap-2">
+          <button type="button" onclick="seleccionarTodoMenuDiaAdmin()" class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-100">
+            Seleccionar todo
+          </button>
+          <button type="button" onclick="limpiarMenuDiaAdmin()" class="rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-100">
+            Limpiar menú del día
+          </button>
+        </div>
+
+        <div id="lista-productos-admin" class="mt-5 space-y-3"></div>
+      </article>
+    </section>
+  </main>
+<script src="../js/config.js"></script>
+<script src="../js/tiempo-real.js"></script>
+  <script src="../js/admin-auth.js"></script>
+  <script src="../js/platos.js"></script>
+  <script src="../js/admin-menu.js"></script>
+</body>
+</html>

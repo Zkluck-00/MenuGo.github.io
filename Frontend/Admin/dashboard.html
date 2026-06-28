@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MenuGo | Dashboard Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body class="min-h-screen bg-[#f7f3ec] text-slate-900">
+  <main class="mx-auto w-full max-w-7xl px-4 py-5 lg:px-6">
+    <header class="mb-6 rounded-[28px] bg-gradient-to-br from-slate-950 to-slate-700 px-5 py-6 shadow-xl shadow-slate-900/20 md:px-8">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
+          <img src="../img/Log.png" alt="Logo MenuGo" class="h-20 w-20 rounded-full bg-white object-contain p-2 shadow-md" />
+          <div>
+            <p class="text-sm font-black uppercase tracking-wide text-orange-200">Panel de administrador</p>
+            <h1 class="mt-1 text-3xl font-black leading-tight text-white md:text-4xl">Ventas y platos más vendidos</h1>
+            <p class="mt-2 max-w-3xl text-base font-medium text-white/90">
+              Panel para visualizar ventas, consultar reportes por fecha y revisar el rendimiento del restaurante.
+            </p>
+          </div>
+        </div>
+        <div class="flex flex-wrap justify-center gap-2 lg:justify-end">
+          <span class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20">
+            Sesión: <span id="admin-nombre">Admin</span>
+          </span>
+          <a href="productos.html" class="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-900/20 hover:bg-orange-600">
+            Gestionar menú
+          </a>
+          <a href="trabajadores.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">
+            Trabajadores
+          </a>
+          <button type="button" onclick="cerrarSesionAdmin()" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">
+            Salir
+          </button>
+        </div>
+      </div>
+    </header>
+
+    <section class="mb-5 grid grid-cols-1 gap-4 md:grid-cols-4">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-sm font-black uppercase tracking-wide text-slate-500">Ventas de hoy</p>
+        <p class="mt-2 text-4xl font-black text-slate-950">S/ <span id="stat-ventas-hoy">0.00</span></p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-sm font-black uppercase tracking-wide text-slate-500">Pedidos pagados hoy</p>
+        <p id="stat-pedidos-hoy" class="mt-2 text-4xl font-black text-orange-600">0</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-sm font-black uppercase tracking-wide text-slate-500">Ticket promedio</p>
+        <p class="mt-2 text-4xl font-black text-emerald-600">S/ <span id="stat-ticket-promedio">0.00</span></p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <p class="text-sm font-black uppercase tracking-wide text-slate-500">Plato líder</p>
+        <p id="stat-plato-lider" class="mt-2 text-2xl font-black text-blue-600">Sin datos</p>
+      </article>
+    </section>
+
+    <section class="mb-5 grid grid-cols-1 gap-5 xl:grid-cols-[1.3fr_0.9fr]">
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="mb-4 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 class="text-2xl font-black text-slate-900">Gráfica de ventas</h2>
+            <p class="text-sm font-semibold text-slate-500">Ventas pagadas agrupadas por día.</p>
+          </div>
+          <select id="rango-grafica-ventas" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" onchange="cargarGrafica()">
+            <option value="7">Últimos 7 días</option>
+            <option value="15">Últimos 15 días</option>
+            <option value="30">Últimos 30 días</option>
+          </select>
+        </div>
+        <canvas id="grafica-ventas" height="260" class="w-full rounded-2xl bg-slate-50"></canvas>
+      </article>
+
+      <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="mb-4">
+          <h2 class="text-2xl font-black text-slate-900">Platos más vendidos</h2>
+          <p class="text-sm font-semibold text-slate-500">Ranking según cantidad vendida en pedidos pagados.</p>
+        </div>
+        
+        <div class="mb-4 flex flex-wrap gap-2 border-b border-slate-200 pb-4">
+          <button type="button" class="filtro-ranking-btn rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white" data-tipo="semana" onclick="aplicarFiltroRanking('semana')">
+            Esta semana
+          </button>
+          <button type="button" class="filtro-ranking-btn rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-100" data-tipo="mes" onclick="aplicarFiltroRanking('mes')">
+            Este mes
+          </button>
+          <button type="button" class="filtro-ranking-btn rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-black text-slate-700 hover:bg-slate-100" data-tipo="personalizado" onclick="aplicarFiltroRanking('personalizado')">
+            Personalizado
+          </button>
+        </div>
+        
+        <div id="filtro-fecha-personalizado" class="mb-4 hidden">
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+            <div>
+              <label class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Fecha desde</label>
+              <input type="date" id="fecha-desde-ranking" class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
+            </div>
+            <div>
+              <label class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Fecha hasta</label>
+              <input type="date" id="fecha-hasta-ranking" class="rounded-xl border border-slate-200 px-3 py-2 text-sm font-bold">
+            </div>
+            <button type="button" onclick="cargarRankingPorFecha()" class="rounded-xl bg-orange-500 px-6 py-2 text-sm font-black text-white hover:bg-orange-600">
+              Aplicar
+            </button>
+          </div>
+        </div>
+  
+  <canvas id="grafica-platos" height="260" class="w-full rounded-2xl bg-slate-50"></canvas>
+  <div id="ranking-platos" class="mt-4 space-y-2"></div>
+</article>
+</section>
+      <section class="grid grid-cols-1 gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+      <article class="rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
+        <h2 class="text-2xl font-black text-orange-900">Consultar ventas por día</h2>
+        <p class="mt-1 text-sm font-semibold text-orange-800">
+          Selecciona una fecha para ver el resumen de ventas registradas en ese día.
+        </p>
+
+        <form id="form-reporte-ventas" class="mt-5 space-y-4">
+          <div>
+            <label for="fecha-reporte" class="mb-1 block text-xs font-black uppercase tracking-wide text-orange-700">Fecha a consultar</label>
+            <input id="fecha-reporte" type="date" class="w-full rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" />
+          </div>
+          <button type="submit" class="w-full rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600">
+            Consultar ventas
+          </button>
+        </form>
+      </article>
+
+      <article class="min-w-0 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 class="text-2xl font-black text-slate-900">Resultado del reporte</h2>
+            <p id="origen-reporte" class="text-sm font-semibold text-slate-500">Selecciona una fecha para consultar.</p>
+          </div>
+          <button type="button" onclick="cargarDatosDemoAdmin()" class="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-black text-slate-700 hover:bg-slate-100">
+            Cargar demo
+          </button>
+        </div>
+        <div id="resultado-reporte" class="mt-4 rounded-2xl bg-slate-50 p-4 text-sm font-semibold text-slate-600">
+          Aún no hay consulta realizada.
+        </div>
+      </article>
+    </section>
+  </main>
+<script src="../js/config.js"></script>
+<script src="../js/tiempo-real.js"></script>
+  <script src="../js/admin-auth.js"></script>
+  <script src="../js/admin-dashboard.js"></script>
+</body>
+
+</html>

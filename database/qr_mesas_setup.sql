@@ -1,0 +1,75 @@
+-- MenuGo - configuracion de QR por mesa
+-- Ejecuta este archivo en PostgreSQL si quieres preparar manualmente los QR de las mesas.
+
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS qr_token VARCHAR(120);
+ALTER TABLE mesas ADD COLUMN IF NOT EXISTS qr_activo BOOLEAN DEFAULT TRUE;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mesas_qr_token
+ON mesas(qr_token)
+WHERE qr_token IS NOT NULL;
+
+WITH datos(numero_mesa, qr_token) AS (
+  VALUES
+  (1, 'MG-MESA-01-9F5BA8CB417B'),
+  (2, 'MG-MESA-02-0100EC9A8B92'),
+  (3, 'MG-MESA-03-FAD9C7239E19'),
+  (4, 'MG-MESA-04-4FF3BD8CBD46'),
+  (5, 'MG-MESA-05-19396C7477A2'),
+  (6, 'MG-MESA-06-CE1179310294'),
+  (7, 'MG-MESA-07-48CA32AFC95C'),
+  (8, 'MG-MESA-08-003CA8181D85'),
+  (9, 'MG-MESA-09-60D3D79BC3E9'),
+  (10, 'MG-MESA-10-E28DAF61E082'),
+  (11, 'MG-MESA-11-6DA0FC111284'),
+  (12, 'MG-MESA-12-8B3BA8F5625F'),
+  (13, 'MG-MESA-13-3C2665B08E88'),
+  (14, 'MG-MESA-14-25B95C55045C'),
+  (15, 'MG-MESA-15-36DD577A341D'),
+  (16, 'MG-MESA-16-68FE869CC56D'),
+  (17, 'MG-MESA-17-36B57B875BC2'),
+  (18, 'MG-MESA-18-3AE152EB5978'),
+  (19, 'MG-MESA-19-C26D169D63B8'),
+  (20, 'MG-MESA-20-E705F39DB6B9')
+)
+INSERT INTO mesas (numero_mesa, activo, qr_token, qr_activo)
+SELECT d.numero_mesa, true, d.qr_token, true
+FROM datos d
+WHERE NOT EXISTS (
+  SELECT 1 FROM mesas m WHERE m.numero_mesa = d.numero_mesa
+);
+
+UPDATE mesas m
+SET qr_token = d.qr_token,
+    qr_activo = true,
+    activo = true
+FROM (VALUES
+  (1, 'MG-MESA-01-9F5BA8CB417B'),
+  (2, 'MG-MESA-02-0100EC9A8B92'),
+  (3, 'MG-MESA-03-FAD9C7239E19'),
+  (4, 'MG-MESA-04-4FF3BD8CBD46'),
+  (5, 'MG-MESA-05-19396C7477A2'),
+  (6, 'MG-MESA-06-CE1179310294'),
+  (7, 'MG-MESA-07-48CA32AFC95C'),
+  (8, 'MG-MESA-08-003CA8181D85'),
+  (9, 'MG-MESA-09-60D3D79BC3E9'),
+  (10, 'MG-MESA-10-E28DAF61E082'),
+  (11, 'MG-MESA-11-6DA0FC111284'),
+  (12, 'MG-MESA-12-8B3BA8F5625F'),
+  (13, 'MG-MESA-13-3C2665B08E88'),
+  (14, 'MG-MESA-14-25B95C55045C'),
+  (15, 'MG-MESA-15-36DD577A341D'),
+  (16, 'MG-MESA-16-68FE869CC56D'),
+  (17, 'MG-MESA-17-36B57B875BC2'),
+  (18, 'MG-MESA-18-3AE152EB5978'),
+  (19, 'MG-MESA-19-C26D169D63B8'),
+  (20, 'MG-MESA-20-E705F39DB6B9')
+) AS d(numero_mesa, qr_token)
+WHERE m.numero_mesa = d.numero_mesa;
+
+SELECT
+  numero_mesa,
+  qr_token,
+  'http://localhost:4000/Cliente/index.html?mesa=' || numero_mesa || '&token=' || qr_token AS url_qr
+FROM mesas
+WHERE numero_mesa BETWEEN 1 AND 20
+ORDER BY numero_mesa;

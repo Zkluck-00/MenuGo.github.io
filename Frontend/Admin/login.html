@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MenuGo | Acceso Administrador</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen bg-[#f7f3ec] text-slate-900">
+  <main class="flex min-h-screen items-center justify-center px-4 py-8">
+    <section class="grid w-full max-w-5xl overflow-hidden rounded-[32px] bg-white shadow-2xl shadow-slate-950/20 lg:grid-cols-[1fr_1.1fr]">
+      <aside class="bg-gradient-to-br from-slate-950 via-slate-900 to-orange-700 p-8 text-white md:p-10">
+        <div class="flex items-center gap-4">
+          <img src="../img/Log.png" alt="Logo MenuGo" class="h-20 w-20 rounded-full bg-white object-contain p-2 shadow-md" />
+          <div>
+            <p class="text-sm font-black uppercase tracking-[0.25em] text-orange-200">MenuGo</p>
+            <h1 class="text-3xl font-black">Administrador</h1>
+          </div>
+        </div>
+
+        <div class="mt-12 space-y-5">
+          <h2 class="text-4xl font-black leading-tight">Controla ventas, menú y personal.</h2>
+          <p class="max-w-md text-base font-medium text-white/85">
+            Ingresa con la cuenta administrativa autorizada para acceder al panel de gestión del restaurante.
+          </p>
+        </div>
+      </aside>
+
+      <section class="p-6 md:p-10">
+        <div id="mensaje-login" class="mb-5 hidden rounded-2xl border px-4 py-3 text-sm font-bold"></div>
+
+        <div class="mb-6 rounded-3xl bg-slate-50 p-5">
+          <p class="text-sm font-black uppercase tracking-wide text-slate-500">Acceso administrativo</p>
+          <h2 class="mt-1 text-3xl font-black text-slate-950">Iniciar sesión</h2>
+          <p class="mt-2 text-sm font-semibold text-slate-500">
+            Solo usuarios autorizados deben ingresar a esta sección.
+          </p>
+        </div>
+
+        <form id="form-login-admin" class="space-y-4">
+          <div>
+            <label for="login-email" class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Usuario</label>
+            <input id="login-email" type="text" autocomplete="username" placeholder="Ingresa tu usuario" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" />
+          </div>
+          <div>
+            <label for="login-password" class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Contraseña</label>
+            <input id="login-password" type="password" autocomplete="current-password" placeholder="Ingresa tu contraseña" class="w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" />
+          </div>
+          <button type="submit" class="w-full rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-900/20 hover:bg-orange-600">
+            Entrar al panel
+          </button>
+        </form>
+      </section>
+    </section>
+  </main>
+<script src="../js/config.js"></script>
+<script src="../js/tiempo-real.js"></script>
+  <script src="../js/admin-auth.js"></script>
+  <script src="../js/admin-login.js"></script>
+</body>
+
+</html>

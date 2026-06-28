@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MenuGo | Mesas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen bg-[#f7f3ec] text-slate-900">
+  <main class="mx-auto w-full max-w-7xl px-4 py-5 lg:px-6">
+    <header
+      class="mb-6 rounded-[28px] bg-gradient-to-br from-slate-950 to-slate-700 px-5 py-6 shadow-xl shadow-slate-900/20 md:px-8">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
+          <img src="../img/Log.png" alt="Logo MenuGo"
+            class="h-20 w-20 rounded-full bg-white object-contain p-2 shadow-md" />
+          <div>
+            <p class="text-sm font-black uppercase tracking-wide text-white">Panel del mesero</p>
+            <h1 class="mt-1 text-3xl font-black leading-tight text-white md:text-4xl">Control de mesas</h1>
+            <p class="mt-2 max-w-2xl text-base font-medium text-white/90">
+              Revisa qué mesas están libres, ocupadas, pagadas o en limpieza. Desde aquí puedes tomar pedidos y abrir la
+              cuenta.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-2 lg:justify-end">
+          <a href="pedidos.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Cuentas
+            y pagos</a>
+          <a href="tomar_pedido.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Tomar
+            pedido</a>
+          <a href="unir_mesas.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Unir
+            mesas</a>
+          <a href="pago_cruzado.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Pago
+            cruzado</a>
+          <button type="button" onclick="recargarMesas()"
+            class="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white shadow-lg shadow-orange-900/20 hover:bg-orange-600">Actualizar</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Libres</p>
+        <p id="stat-libres" class="mt-2 text-3xl font-black text-emerald-600">0</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Ocupadas</p>
+        <p id="stat-ocupadas" class="mt-2 text-3xl font-black text-orange-600">0</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Pagadas</p>
+        <p id="stat-pagadas" class="mt-2 text-3xl font-black text-blue-600">0</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Limpieza</p>
+        <p id="stat-limpieza" class="mt-2 text-3xl font-black text-purple-600">0</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Unidas</p>
+        <p id="stat-unidas" class="mt-2 text-3xl font-black text-slate-950">0</p>
+      </article>
+    </section>
+
+    <section class="mb-5 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="flex flex-wrap gap-2">
+          <button type="button" data-filtro="todas" onclick="cambiarFiltroMesas('todas')"
+            class="filtro-mesa rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">Todas</button>
+          <button type="button" data-filtro="libre" onclick="cambiarFiltroMesas('libre')"
+            class="filtro-mesa rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Libres</button>
+          <button type="button" data-filtro="ocupada" onclick="cambiarFiltroMesas('ocupada')"
+            class="filtro-mesa rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Ocupadas</button>
+          <button type="button" data-filtro="pagada" onclick="cambiarFiltroMesas('pagada')"
+            class="filtro-mesa rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Pagadas</button>
+          <button type="button" data-filtro="limpieza" onclick="cambiarFiltroMesas('limpieza')"
+            class="filtro-mesa rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Limpieza</button>
+          <button type="button" data-filtro="unida" onclick="cambiarFiltroMesas('unida')"
+            class="filtro-mesa rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Unidas</button>
+        </div>
+        <button type="button" onclick="restaurarMesasDemo()"
+          class="rounded-full border border-red-200 bg-red-50 px-4 py-2 text-sm font-black text-red-700 hover:bg-red-100">Resetear
+          estados manuales</button>
+      </div>
+    </section>
+
+    <section id="contenedor-mesas" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+    </section>
+  </main>
+<script src="../js/config.js"></script>
+<script src="../js/tiempo-real.js"></script>
+  <script src="../js/personal-auth.js"></script>
+  <script src="../js/mesas.js"></script>
+</body>
+
+</html>

@@ -1,0 +1,380 @@
+const { meseroPool } = require("../config/db");
+const { recalcularCuenta } = require("./pedidos.controller");
+const eventEmitter = require('../utils/eventEmitter');
+async function asegurarMesa(client, numero) {
+  const n = Number(numero);
+  const existente = await client.query("SELECT id_mesa FROM mesas WHERE numero_mesa = $1", [n]);
+  if (existente.rows.length) return existente.rows[0].id_mesa;
+  const nueva = await client.query("INSERT INTO mesas (numero_mesa, activo) VALUES ($1, true) RETURNING id_mesa", [n]);
+  return nueva.rows[0].id_mesa;
+}
+
+async function listarMesas(req, res) {
+  try {
+    const { rows } = await meseroPool.query(`
+      SELECT 
+        m.id_mesa,
+        m.numero_mesa,
+        m.activo,
+        gm.id_grupo_mesa,
+        gm.nombre_grupo,
+        gm.mesa_principal,
+        COALESCE((
+          SELECT COUNT(gmd2.id_mesa)
+          FROM grupo_mesa_detalle gmd2
+          WHERE gmd2.id_grupo_mesa = gm.id_grupo_mesa
+        ), 0) as mesas_en_grupo,
+        COALESCE(SUM(CASE 
+          WHEN p.estado IN ('pendiente','preparando','listo','entregado') 
+          AND (dp.subtotal - COALESCE((
+            SELECT SUM(dpg.monto)
+            FROM detalle_pago dpg
+            INNER JOIN pagos pg ON pg.id_pago = dpg.id_pago
+            WHERE dpg.id_detalle_producto = dp.id_detalle_producto
+            AND pg.estado_pago = 'pagado'
+          ), 0) > 0)
+          THEN 1 ELSE 0 END), 0) AS pedidos_activos,
+        COALESCE(SUM(CASE 
+          WHEN p.estado IN ('pendiente','preparando','listo','entregado')
+          THEN (dp.subtotal - COALESCE((
+            SELECT SUM(dpg.monto)
+            FROM detalle_pago dpg
+            INNER JOIN pagos pg ON pg.id_pago = dpg.id_pago
+            WHERE dpg.id_detalle_producto = dp.id_detalle_producto
+            AND pg.estado_pago = 'pagado'
+          ), 0))
+          ELSE 0 END), 0) AS total_pendiente,
+        COALESCE(SUM(CASE 
+          WHEN p.estado IN ('pendiente','preparando','listo','entregado')
+          THEN COALESCE((
+            SELECT SUM(dpg.monto)
+            FROM detalle_pago dpg
+            INNER JOIN pagos pg ON pg.id_pago = dpg.id_pago
+            WHERE dpg.id_detalle_producto = dp.id_detalle_producto
+            AND pg.estado_pago = 'pagado'
+          ), 0)
+          ELSE 0 END), 0) AS total_pagado
+      FROM mesas m
+      LEFT JOIN grupo_mesa_detalle gmd ON gmd.id_mesa = m.id_mesa
+      LEFT JOIN grupos_mesa gm ON gm.id_grupo_mesa = gmd.id_grupo_mesa AND gm.estado = 'activo'
+      LEFT JOIN pedidos p ON p.id_grupo_mesa = gm.id_grupo_mesa AND p.estado IN ('pendiente', 'preparando', 'listo', 'entregado')
+      LEFT JOIN detalle_producto dp ON dp.id_pedido = p.id_pedido
+      GROUP BY 
+        m.id_mesa, 
+        m.numero_mesa, 
+        m.activo, 
+        gm.id_grupo_mesa, 
+        gm.nombre_grupo, 
+        gm.mesa_principal
+      ORDER BY m.numero_mesa ASC
+    `);
+
+    const mesaMap = new Map();
+    
+    for (const row of rows) {
+      const numero = row.numero_mesa;
+      
+      if (!mesaMap.has(numero)) {
+        mesaMap.set(numero, {
+          id_mesa: row.id_mesa,
+          numero_mesa: numero,
+          activo: row.activo,
+          id_grupo_mesa: null,
+          nombre_grupo: null,
+          mesa_principal: null,
+          mesas_en_grupo: 0,
+          pedidos_activos: 0,
+          total_pendiente: 0,
+          total_pagado: 0,
+          tiene_grupo: false
+        });
+      }
+      
+      const mesaActual = mesaMap.get(numero);
+      
+      if (row.id_grupo_mesa && Number(row.total_pendiente) > 0) {
+        mesaActual.id_grupo_mesa = row.id_grupo_mesa;
+        mesaActual.nombre_grupo = row.nombre_grupo;
+        mesaActual.mesa_principal = row.mesa_principal;
+        mesaActual.mesas_en_grupo = Number(row.mesas_en_grupo);
+        mesaActual.pedidos_activos = Number(row.pedidos_activos);
+        mesaActual.total_pendiente = Number(row.total_pendiente);
+        mesaActual.total_pagado = Number(row.total_pagado);
+        mesaActual.tiene_grupo = true;
+      }
+    }
+    
+    const data = Array.from(mesaMap.values()).map((row) => {
+      let estado = "libre";
+      const tienePendiente = row.total_pendiente > 0;
+      const tienePagos = row.total_pagado > 0;
+      const mesasEnGrupo = row.mesas_en_grupo;
+      
+      if (!row.activo) {
+        estado = "limpieza";
+      } else if (tienePendiente) {
+        estado = "ocupada";
+      } else if (tienePagos && !tienePendiente) {
+        estado = "pagada";
+      } else if (row.id_grupo_mesa && mesasEnGrupo > 1 && tienePendiente) {
+        estado = "unida";
+      }
+      
+      return {
+        id_mesa: row.id_mesa,
+        numero: row.numero_mesa,
+        numero_mesa: row.numero_mesa,
+        activo: row.activo,
+        estado: estado,
+        estadoManual: estado,
+        grupoId: (row.id_grupo_mesa && mesasEnGrupo > 1) ? row.id_grupo_mesa : null,
+        grupo_id: (row.id_grupo_mesa && mesasEnGrupo > 1) ? row.id_grupo_mesa : null,
+        grupo: (row.id_grupo_mesa && mesasEnGrupo > 1) ? {
+          id: row.id_grupo_mesa,
+          nombre: row.nombre_grupo,
+          mesaPrincipal: row.mesa_principal,
+        } : null,
+        nota: (row.nombre_grupo && mesasEnGrupo > 1) ? row.nombre_grupo : "",
+        total: row.total_pendiente,
+        pendiente: row.total_pendiente,
+        pagado: row.total_pagado,
+      };
+    });
+
+    res.json({ ok: true, data, total: data.length });
+  } catch (error) {
+    console.error("Error al listar mesas:", error);
+    res.status(500).json({ ok: false, message: "Error al listar mesas", error: error.message });
+  }
+}
+
+
+function obtenerUrlClienteBase(req) {
+  const configurada = process.env.FRONTEND_CLIENTE_URL || process.env.FRONTEND_BASE_URL;
+  if (configurada) return configurada.replace(/\/+$/, "") + (configurada.endsWith("index.html") ? "" : "/Cliente/index.html");
+  return `${req.protocol}://${req.get("host")}/Cliente/index.html`;
+}
+
+async function validarQrMesa(req, res) {
+  try {
+    const numeroMesa = Number(req.query.mesa || req.body.mesa || req.params.mesa);
+    const token = String(req.query.token || req.body.token || req.body.qr_token || "").trim();
+
+    if (!numeroMesa || !token) {
+      return res.status(400).json({ ok: false, message: "Mesa y token son obligatorios" });
+    }
+
+    const { rows } = await meseroPool.query(
+      `SELECT id_mesa, numero_mesa, activo
+       FROM mesas
+       WHERE numero_mesa = $1
+         AND qr_token = $2
+         AND activo = true
+         AND COALESCE(qr_activo, true) = true
+       LIMIT 1`,
+      [numeroMesa, token],
+    );
+
+    if (!rows.length) {
+      return res.status(403).json({ ok: false, message: "QR invalido o mesa no autorizada" });
+    }
+
+    return res.json({
+      ok: true,
+      message: "QR valido",
+      data: {
+        id_mesa: rows[0].id_mesa,
+        numero_mesa: rows[0].numero_mesa,
+      },
+    });
+  } catch (error) {
+    console.error("Error al validar QR de mesa:", error);
+    return res.status(500).json({ ok: false, message: "Error al validar QR de mesa", error: error.message });
+  }
+}
+
+async function listarQrMesas(req, res) {
+  try {
+    const { rows } = await meseroPool.query(
+      `SELECT numero_mesa, qr_token, COALESCE(qr_activo, true) AS qr_activo
+       FROM mesas
+       WHERE qr_token IS NOT NULL
+       ORDER BY numero_mesa ASC`,
+    );
+    const base = obtenerUrlClienteBase(req);
+    const data = rows.map((row) => ({
+      numero_mesa: row.numero_mesa,
+      qr_token: row.qr_token,
+      qr_activo: row.qr_activo,
+      url_qr: `${base}?mesa=${encodeURIComponent(row.numero_mesa)}&token=${encodeURIComponent(row.qr_token)}`,
+    }));
+    return res.json({ ok: true, data, total: data.length });
+  } catch (error) {
+    console.error("Error al listar QR de mesas:", error);
+    return res.status(500).json({ ok: false, message: "Error al listar QR de mesas", error: error.message });
+  }
+}
+
+async function cambiarEstadoMesa(req, res) {
+  try {
+    const { id } = req.params;
+    const activo = req.body.activo;
+    if (typeof activo !== "boolean") return res.status(400).json({ ok: false, message: "Debe enviar activo true/false" });
+    const { rows } = await meseroPool.query("UPDATE mesas SET activo = $1 WHERE numero_mesa = $2 OR id_mesa = $2 RETURNING *", [activo, id]);
+    if (!rows.length) return res.status(404).json({ ok: false, message: "Mesa no encontrada" });
+    res.json({ ok: true, message: `Mesa ${activo ? "activada" : "desactivada"}`, data: rows[0] });
+  } catch (error) {
+    console.error("Error al cambiar estado de mesa:", error);
+    res.status(500).json({ ok: false, message: "Error al cambiar estado de mesa", error: error.message });
+  }
+}
+
+async function unirMesas(req, res) {
+  const client = await meseroPool.connect();
+  try {
+    const mesaPrincipal = Number(req.body.mesa_principal);
+    const mesasAUnir = (req.body.mesas_a_unir || req.body.mesas || []).map(Number).filter(Boolean);
+    const mesas = Array.from(new Set([mesaPrincipal, ...mesasAUnir])).filter(Boolean).sort((a, b) => a - b);
+
+    if (!mesaPrincipal || mesas.length < 2) {
+      return res.status(400).json({ ok: false, message: "Debe enviar mesa_principal y al menos una mesa secundaria" });
+    }
+    if (mesasAUnir.includes(mesaPrincipal)) {
+      return res.status(400).json({ ok: false, message: "Una mesa no puede unirse consigo misma" });
+    }
+
+    await client.query("BEGIN");
+
+    const ocupadas = await client.query(
+      `SELECT m.numero_mesa, gm.id_grupo_mesa, gm.nombre_grupo
+       FROM mesas m
+       INNER JOIN grupo_mesa_detalle gmd ON gmd.id_mesa = m.id_mesa
+       INNER JOIN grupos_mesa gm ON gm.id_grupo_mesa = gmd.id_grupo_mesa
+       WHERE gm.estado = 'activo' AND m.numero_mesa = ANY($1::int[])`,
+      [mesas],
+    );
+    if (ocupadas.rows.length > 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ ok: false, message: `Mesa(s) ya unidas: ${ocupadas.rows.map((m) => m.numero_mesa).join(", ")}` });
+    }
+
+    const nombre = req.body.nombre_grupo || `Grupo Mesa ${mesas.join(" + ")}`;
+    const grupo = await client.query(
+      `INSERT INTO grupos_mesa (nombre_grupo, mesa_principal, estado)
+       VALUES ($1, $2, 'activo')
+       RETURNING *`,
+      [nombre, mesaPrincipal],
+    );
+    const idGrupoMesa = grupo.rows[0].id_grupo_mesa;
+
+    for (const numero of mesas) {
+      const idMesa = await asegurarMesa(client, numero);
+      await client.query(
+        `INSERT INTO grupo_mesa_detalle (id_grupo_mesa, id_mesa)
+         VALUES ($1, $2)
+         ON CONFLICT (id_grupo_mesa, id_mesa) DO NOTHING`,
+        [idGrupoMesa, idMesa],
+      );
+    }
+
+    const gruposAnteriores = await client.query(
+      `SELECT DISTINCT p.id_grupo_mesa
+       FROM pedidos p
+       INNER JOIN grupos_mesa gm ON gm.id_grupo_mesa = p.id_grupo_mesa
+       INNER JOIN grupo_mesa_detalle gmd ON gmd.id_grupo_mesa = gm.id_grupo_mesa
+       INNER JOIN mesas m ON m.id_mesa = gmd.id_mesa
+       WHERE p.estado IN ('pendiente','preparando','listo','entregado')
+         AND m.numero_mesa = ANY($1::int[])`,
+      [mesas],
+    );
+
+    await client.query(
+      `UPDATE pedidos p
+       SET id_grupo_mesa = $1
+       WHERE p.estado IN ('pendiente','preparando','listo','entregado')
+         AND EXISTS (
+           SELECT 1
+           FROM grupo_mesa_detalle gmd
+           INNER JOIN mesas m ON m.id_mesa = gmd.id_mesa
+           WHERE gmd.id_grupo_mesa = p.id_grupo_mesa AND m.numero_mesa = ANY($2::int[])
+         )`,
+      [idGrupoMesa, mesas],
+    );
+
+    await client.query(
+      `INSERT INTO cuentas (id_grupo_mesa, descripcion, tipo_cuenta, total, estado)
+       VALUES ($1, $2, 'mixta', 0, 'pendiente')`,
+      [idGrupoMesa, nombre],
+    );
+    await recalcularCuenta(client, idGrupoMesa);
+
+    for (const row of gruposAnteriores.rows) {
+      if (row.id_grupo_mesa && Number(row.id_grupo_mesa) !== Number(idGrupoMesa)) {
+        await client.query("UPDATE grupos_mesa SET estado = 'cerrado' WHERE id_grupo_mesa = $1", [row.id_grupo_mesa]);
+      }
+    }
+
+    await client.query("COMMIT");
+    eventEmitter.emitMesaActualizada({ id_grupo_mesa: idGrupoMesa, mesas });
+    res.json({ ok: true, message: `${nombre} creado correctamente`, data: { ...grupo.rows[0], mesas } });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error al unir mesas:", error);
+    res.status(400).json({ ok: false, message: "Error al unir mesas", error: error.message });
+  } finally {
+    client.release();
+  }
+}
+
+async function desunirMesas(req, res) {
+  const client = await meseroPool.connect();
+  try {
+    const idOrPrincipal = req.params.mesa_principal;
+    await client.query("BEGIN");
+    const grupo = await client.query(
+      `UPDATE grupos_mesa
+       SET estado = 'cerrado'
+       WHERE estado = 'activo' AND (id_grupo_mesa::text = $1 OR mesa_principal::text = $1)
+       RETURNING *`,
+      [String(idOrPrincipal)],
+    );
+    if (!grupo.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ ok: false, message: "Union no encontrada" });
+    }
+    await client.query("COMMIT");
+    res.json({ ok: true, message: "Mesas desunidas correctamente", data: grupo.rows[0] });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error al desunir mesas:", error);
+    res.status(400).json({ ok: false, message: "Error al desunir mesas", error: error.message });
+  } finally {
+    client.release();
+  }
+}
+
+async function getInfoMesas(req, res) {
+  try {
+    const { rows } = await meseroPool.query(
+      `SELECT gm.id_grupo_mesa AS id,
+              gm.nombre_grupo AS nombre,
+              gm.mesa_principal,
+              gm.estado,
+              gm.fecha_creacion,
+              ARRAY_AGG(m.numero_mesa ORDER BY m.numero_mesa) AS mesas
+       FROM grupos_mesa gm
+       INNER JOIN grupo_mesa_detalle gmd ON gmd.id_grupo_mesa = gm.id_grupo_mesa
+       INNER JOIN mesas m ON m.id_mesa = gmd.id_mesa
+       WHERE gm.estado = 'activo'
+       GROUP BY gm.id_grupo_mesa
+       ORDER BY gm.fecha_creacion DESC`,
+    );
+
+    res.json({ ok: true, data: rows, total_uniones: rows.length });
+  } catch (error) {
+    console.error("Error al obtener uniones:", error);
+    res.status(500).json({ ok: false, message: "Error al obtener uniones", error: error.message });
+  }
+}
+
+module.exports = { listarMesas, validarQrMesa, listarQrMesas, cambiarEstadoMesa, unirMesas, desunirMesas, getInfoMesas };
