@@ -1,8 +1,8 @@
 // MenuGo - configuración de API
-// Para producción en Vercel, cambia PRODUCCION_API por la URL real de Render.
+// Para producción en Vercel, usa la URL real del backend en Render.
 (function () {
   const LOCAL_API = "http://localhost:4000/api";
-  const PRODUCCION_API = "https://COLOCA-AQUI-TU-BACKEND-DE-RENDER.onrender.com/api";
+  const PRODUCCION_API = "https://menugo-backend.onrender.com/api";
 
   const host = window.location.hostname;
   const esLocal = !host || host === "localhost" || host === "127.0.0.1" || host.startsWith("192.168.");
