@@ -151,6 +151,41 @@ async function crearCuentaSiNoExiste(client, idGrupoMesa) {
   return nueva.rows[0].id_cuenta;
 }
 
+
+async function asegurarTablaSolicitudesCuenta(client) {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS solicitudes_cuenta (
+      id_solicitud SERIAL PRIMARY KEY,
+      id_grupo_mesa INTEGER NOT NULL REFERENCES grupos_mesa(id_grupo_mesa) ON DELETE CASCADE,
+      id_cuenta INTEGER REFERENCES cuentas(id_cuenta) ON DELETE SET NULL,
+      estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+      nota TEXT,
+      fecha_solicitud TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      atendido_at TIMESTAMP,
+      CONSTRAINT chk_solicitud_estado CHECK (estado IN ('pendiente', 'atendida', 'cancelada'))
+    )
+  `);
+}
+
+async function asegurarTablaComentariosMesa(client) {
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS comentarios_mesa (
+      id_comentario_mesa SERIAL PRIMARY KEY,
+      id_mesa INTEGER REFERENCES mesas(id_mesa) ON DELETE SET NULL,
+      numero_mesa INTEGER NOT NULL,
+      id_grupo_mesa INTEGER REFERENCES grupos_mesa(id_grupo_mesa) ON DELETE SET NULL,
+      id_pedido INTEGER REFERENCES pedidos(id_pedido) ON DELETE SET NULL,
+      motivo VARCHAR(80) NOT NULL,
+      detalle TEXT,
+      estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+      fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      atendido_at TIMESTAMP,
+      CONSTRAINT chk_comentario_mesa_estado CHECK (estado IN ('pendiente', 'atendido', 'cancelado'))
+    )
+  `);
+  await client.query(`CREATE INDEX IF NOT EXISTS idx_comentarios_mesa_pendientes ON comentarios_mesa(numero_mesa, estado, fecha_creacion DESC)`);
+}
+
 async function recalcularCuenta(client, idGrupoMesa) {
   if (!idGrupoMesa) return;
   await client.query(
@@ -672,25 +707,82 @@ async function solicitarCuenta(req, res) {
   const client = await clientePool.connect();
   try {
     const numeroMesa = Number(req.params.id_mesa || req.body.id_mesa);
-    await client.query("BEGIN");
-    const grupo = await obtenerGrupoActivoPorMesa(client, numeroMesa);
-    if (!grupo) {
-      await client.query("ROLLBACK");
-      return res.status(404).json({ ok: false, message: "No hay grupo/cuenta activa para esta mesa" });
+    if (!numeroMesa) {
+      return res.status(400).json({ ok: false, message: "Numero de mesa invalido" });
     }
-    const cuenta = await crearCuentaSiNoExiste(client, grupo.id_grupo_mesa);
-    await client.query(
+
+    await client.query("BEGIN");
+    await asegurarTablaSolicitudesCuenta(client);
+
+    const grupoExistente = await obtenerGrupoActivoPorMesa(client, numeroMesa);
+    const idGrupoMesa = grupoExistente?.id_grupo_mesa || await asegurarGrupoMesa(client, numeroMesa);
+    const cuenta = await crearCuentaSiNoExiste(client, idGrupoMesa);
+
+    const solicitud = await client.query(
       `INSERT INTO solicitudes_cuenta (id_grupo_mesa, id_cuenta, estado, nota)
        VALUES ($1, $2, 'pendiente', $3)
        RETURNING *`,
-      [grupo.id_grupo_mesa, cuenta, req.body.nota || "Solicitud enviada desde cliente"],
+      [idGrupoMesa, cuenta, req.body.nota || "Cliente solicita cuenta desde seguimiento"],
     );
+
     await client.query("COMMIT");
-    res.json({ ok: true, message: "Solicitud de cuenta registrada" });
+    eventEmitter.emitCuentaActualizada({ id_grupo_mesa: idGrupoMesa, id_cuenta: cuenta, tipo: "solicitud_cuenta", numero_mesa: numeroMesa });
+    eventEmitter.emitMesaActualizada({ numero_mesa: numeroMesa, tipo: "solicitud_cuenta" });
+    res.json({ ok: true, message: "Solicitud de cuenta registrada", data: solicitud.rows[0] });
   } catch (error) {
     await client.query("ROLLBACK");
     console.error("Error al solicitar cuenta:", error);
     res.status(500).json({ ok: false, message: "Error al solicitar cuenta", error: error.message });
+  } finally {
+    client.release();
+  }
+}
+
+async function enviarComentarioMesa(req, res) {
+  const client = await clientePool.connect();
+  try {
+    const numeroMesa = Number(req.params.id_mesa || req.body.id_mesa || req.body.mesa);
+    const motivo = String(req.body.motivo || "").trim();
+    const detalle = String(req.body.detalle || req.body.comentario || "").trim();
+    const token = String(req.body.qr_token || req.body.token || "").trim();
+    const idPedido = req.body.id_pedido ? Number(req.body.id_pedido) : null;
+
+    if (!numeroMesa) {
+      return res.status(400).json({ ok: false, message: "Numero de mesa invalido" });
+    }
+    if (!motivo) {
+      return res.status(400).json({ ok: false, message: "Selecciona el motivo del comentario" });
+    }
+
+    await client.query("BEGIN");
+    await asegurarTablaComentariosMesa(client);
+
+    if (token) {
+      await validarQrDeMesa(client, numeroMesa, token);
+    }
+
+    const mesa = await client.query("SELECT id_mesa FROM mesas WHERE numero_mesa = $1 LIMIT 1", [numeroMesa]);
+    if (!mesa.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ ok: false, message: "Mesa no encontrada" });
+    }
+
+    const grupo = await obtenerGrupoActivoPorMesa(client, numeroMesa);
+    const comentario = await client.query(
+      `INSERT INTO comentarios_mesa (id_mesa, numero_mesa, id_grupo_mesa, id_pedido, motivo, detalle, estado)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pendiente')
+       RETURNING id_comentario_mesa, numero_mesa, id_grupo_mesa, id_pedido, motivo, detalle, estado, fecha_creacion`,
+      [mesa.rows[0].id_mesa, numeroMesa, grupo?.id_grupo_mesa || null, idPedido, motivo, detalle || null],
+    );
+
+    await client.query("COMMIT");
+    eventEmitter.emitComentarioMesa(comentario.rows[0]);
+    eventEmitter.emitMesaActualizada({ numero_mesa: numeroMesa, tipo: "comentario_cliente", comentario: comentario.rows[0] });
+    res.json({ ok: true, message: "Comentario enviado al mesero", data: comentario.rows[0] });
+  } catch (error) {
+    await client.query("ROLLBACK");
+    console.error("Error al enviar comentario de mesa:", error);
+    res.status(500).json({ ok: false, message: "Error al enviar comentario al mesero", error: error.message });
   } finally {
     client.release();
   }
@@ -704,6 +796,7 @@ module.exports = {
   actualizarEstadoPedido,
   obtenerPedidosMesa,
   solicitarCuenta,
+  enviarComentarioMesa,
   obtenerPedidoRows,
   mapPedido,
   recalcularCuenta,

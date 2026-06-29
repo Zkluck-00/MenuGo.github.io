@@ -1,6 +1,37 @@
 const { meseroPool } = require("../config/db");
 const { recalcularCuenta } = require("./pedidos.controller");
 const eventEmitter = require('../utils/eventEmitter');
+
+async function asegurarTablaComentariosMesa() {
+  await meseroPool.query(`
+    CREATE TABLE IF NOT EXISTS comentarios_mesa (
+      id_comentario_mesa SERIAL PRIMARY KEY,
+      id_mesa INTEGER REFERENCES mesas(id_mesa) ON DELETE SET NULL,
+      numero_mesa INTEGER NOT NULL,
+      id_grupo_mesa INTEGER REFERENCES grupos_mesa(id_grupo_mesa) ON DELETE SET NULL,
+      id_pedido INTEGER REFERENCES pedidos(id_pedido) ON DELETE SET NULL,
+      motivo VARCHAR(80) NOT NULL,
+      detalle TEXT,
+      estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+      fecha_creacion TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      atendido_at TIMESTAMP,
+      CONSTRAINT chk_comentario_mesa_estado CHECK (estado IN ('pendiente', 'atendido', 'cancelado'))
+    )
+  `);
+  await meseroPool.query(`CREATE INDEX IF NOT EXISTS idx_comentarios_mesa_pendientes ON comentarios_mesa(numero_mesa, estado, fecha_creacion DESC)`);
+}
+
+function mapearAlertaCliente(row) {
+  if (!row.id_comentario_mesa) return null;
+  return {
+    id_comentario_mesa: row.id_comentario_mesa,
+    motivo: row.comentario_motivo,
+    detalle: row.comentario_detalle || "",
+    estado: row.comentario_estado || "pendiente",
+    fecha_creacion: row.comentario_fecha,
+  };
+}
+
 async function asegurarMesa(client, numero) {
   const n = Number(numero);
   const existente = await client.query("SELECT id_mesa FROM mesas WHERE numero_mesa = $1", [n]);
@@ -11,6 +42,7 @@ async function asegurarMesa(client, numero) {
 
 async function listarMesas(req, res) {
   try {
+    await asegurarTablaComentariosMesa();
     const { rows } = await meseroPool.query(`
       SELECT 
         m.id_mesa,
@@ -53,19 +85,37 @@ async function listarMesas(req, res) {
             WHERE dpg.id_detalle_producto = dp.id_detalle_producto
             AND pg.estado_pago = 'pagado'
           ), 0)
-          ELSE 0 END), 0) AS total_pagado
+          ELSE 0 END), 0) AS total_pagado,
+        cm.id_comentario_mesa,
+        cm.motivo AS comentario_motivo,
+        cm.detalle AS comentario_detalle,
+        cm.estado AS comentario_estado,
+        cm.fecha_creacion AS comentario_fecha
       FROM mesas m
       LEFT JOIN grupo_mesa_detalle gmd ON gmd.id_mesa = m.id_mesa
       LEFT JOIN grupos_mesa gm ON gm.id_grupo_mesa = gmd.id_grupo_mesa AND gm.estado = 'activo'
       LEFT JOIN pedidos p ON p.id_grupo_mesa = gm.id_grupo_mesa AND p.estado IN ('pendiente', 'preparando', 'listo', 'entregado')
       LEFT JOIN detalle_producto dp ON dp.id_pedido = p.id_pedido
+      LEFT JOIN LATERAL (
+        SELECT id_comentario_mesa, motivo, detalle, estado, fecha_creacion
+        FROM comentarios_mesa cm
+        WHERE cm.numero_mesa = m.numero_mesa
+          AND cm.estado = 'pendiente'
+        ORDER BY cm.fecha_creacion DESC, cm.id_comentario_mesa DESC
+        LIMIT 1
+      ) cm ON true
       GROUP BY 
         m.id_mesa, 
         m.numero_mesa, 
         m.activo, 
         gm.id_grupo_mesa, 
         gm.nombre_grupo, 
-        gm.mesa_principal
+        gm.mesa_principal,
+        cm.id_comentario_mesa,
+        cm.motivo,
+        cm.detalle,
+        cm.estado,
+        cm.fecha_creacion
       ORDER BY m.numero_mesa ASC
     `);
 
@@ -86,11 +136,15 @@ async function listarMesas(req, res) {
           pedidos_activos: 0,
           total_pendiente: 0,
           total_pagado: 0,
-          tiene_grupo: false
+          tiene_grupo: false,
+          alerta_cliente: mapearAlertaCliente(row)
         });
       }
       
       const mesaActual = mesaMap.get(numero);
+      if (!mesaActual.alerta_cliente && row.id_comentario_mesa) {
+        mesaActual.alerta_cliente = mapearAlertaCliente(row);
+      }
       
       if (row.id_grupo_mesa && Number(row.total_pendiente) > 0) {
         mesaActual.id_grupo_mesa = row.id_grupo_mesa;
@@ -138,6 +192,8 @@ async function listarMesas(req, res) {
         total: row.total_pendiente,
         pendiente: row.total_pendiente,
         pagado: row.total_pagado,
+        alertaCliente: row.alerta_cliente,
+        comentario_cliente: row.alerta_cliente,
       };
     });
 
@@ -377,4 +433,28 @@ async function getInfoMesas(req, res) {
   }
 }
 
-module.exports = { listarMesas, validarQrMesa, listarQrMesas, cambiarEstadoMesa, unirMesas, desunirMesas, getInfoMesas };
+
+async function atenderComentarioMesa(req, res) {
+  try {
+    await asegurarTablaComentariosMesa();
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ ok: false, message: "Comentario invalido" });
+
+    const { rows } = await meseroPool.query(
+      `UPDATE comentarios_mesa
+       SET estado = 'atendido', atendido_at = CURRENT_TIMESTAMP
+       WHERE id_comentario_mesa = $1
+       RETURNING *`,
+      [id],
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, message: "Comentario no encontrado" });
+
+    eventEmitter.emitMesaActualizada({ numero_mesa: rows[0].numero_mesa, tipo: "comentario_atendido", comentario: rows[0] });
+    res.json({ ok: true, message: "Comentario marcado como atendido", data: rows[0] });
+  } catch (error) {
+    console.error("Error al atender comentario de mesa:", error);
+    res.status(500).json({ ok: false, message: "Error al atender comentario", error: error.message });
+  }
+}
+
+module.exports = { listarMesas, validarQrMesa, listarQrMesas, cambiarEstadoMesa, unirMesas, desunirMesas, getInfoMesas, atenderComentarioMesa };

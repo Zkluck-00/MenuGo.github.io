@@ -24,6 +24,7 @@ async function recargarMesas() {
   try {
     await cargarMesas();
     renderEstadisticasMesas();
+    renderAlertasComentariosMesa();
     renderMesas();
   } catch (error) {
     if (contenedor) contenedor.innerHTML = `<div class="col-span-full rounded-3xl border border-red-200 bg-red-50 p-8 text-center text-red-700"><h2 class="text-2xl font-black">No se pudo cargar mesas</h2><p class="mt-2 text-sm font-semibold">${escapeHtml(error.message)}</p></div>`;
@@ -63,6 +64,48 @@ function textoEstado(estado) {
   return ({ libre: "Libre", ocupada: "Ocupada", pagada: "Pagada", limpieza: "En limpieza", unida: "Unida" })[estado] || "Sin estado";
 }
 
+function alertaDeMesa(mesa) {
+  return mesa.alertaCliente || mesa.comentario_cliente || null;
+}
+
+function renderAlertasComentariosMesa() {
+  const panel = document.getElementById("alertas-comentarios-mesa");
+  if (!panel) return;
+
+  const alertas = mesasBase
+    .map((mesa) => ({ mesa, alerta: alertaDeMesa(mesa) }))
+    .filter((item) => item.alerta);
+
+  if (!alertas.length) {
+    panel.classList.add("hidden");
+    panel.innerHTML = "";
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  panel.innerHTML = `
+    <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="text-xs font-black uppercase tracking-wide text-orange-700">Notificaciones de clientes</p>
+        <h2 class="text-xl font-black text-slate-950">${alertas.length} mesa(s) requieren atencion</h2>
+      </div>
+      <span class="rounded-full bg-orange-100 px-3 py-1 text-xs font-black text-orange-700">Pendiente de revision</span>
+    </div>
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      ${alertas.map(({ mesa, alerta }) => `
+        <article class="rounded-2xl border border-orange-200 bg-white p-4 shadow-sm">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-xs font-black uppercase tracking-wide text-slate-500">Mesa ${escapeHtml(mesa.numero_mesa || mesa.numero)}</p>
+              <h3 class="mt-1 text-lg font-black text-orange-700">${escapeHtml(alerta.motivo)}</h3>
+            </div>
+            <button type="button" onclick="atenderComentarioMesa('${escapeHtml(String(alerta.id_comentario_mesa))}')" class="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Atendida</button>
+          </div>
+          <p class="mt-2 text-sm font-semibold text-slate-600">${escapeHtml(alerta.detalle || "Sin detalle adicional")}</p>
+        </article>`).join("")}
+    </div>`;
+}
+
 function renderMesas() {
   const contenedor = document.getElementById("contenedor-mesas");
   if (!contenedor) return;
@@ -73,25 +116,45 @@ function renderMesas() {
   }
   contenedor.innerHTML = mesas.map((mesa) => {
     const numero = mesa.numero_mesa || mesa.numero;
-    return `<article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/5">
+    const alerta = alertaDeMesa(mesa);
+    const alertaHtml = alerta ? `
+      <div class="mt-4 rounded-2xl border border-orange-200 bg-orange-50 p-3">
+        <div class="flex items-start justify-between gap-2">
+          <div>
+            <p class="text-xs font-black uppercase tracking-wide text-orange-700">Aviso del cliente</p>
+            <p class="mt-1 text-sm font-black text-orange-800">${escapeHtml(alerta.motivo)}</p>
+          </div>
+          <button type="button" onclick="atenderComentarioMesa('${escapeHtml(String(alerta.id_comentario_mesa))}')" class="rounded-xl bg-white px-3 py-2 text-xs font-black text-orange-700 ring-1 ring-orange-200">Atendida</button>
+        </div>
+        <p class="mt-2 text-xs font-semibold text-orange-800">${escapeHtml(alerta.detalle || "Sin detalle adicional")}</p>
+      </div>` : "";
+
+    return `<article class="rounded-3xl border ${alerta ? 'border-orange-300' : 'border-slate-200'} bg-white p-5 shadow-lg shadow-slate-900/5">
       <div class="flex items-start justify-between gap-3"><div><p class="text-sm font-black uppercase tracking-wide text-slate-500">Mesa</p><h2 class="text-3xl font-black text-slate-950">${numero}</h2></div><span class="rounded-full px-3 py-1.5 text-xs font-black ring-1 ${claseEstado(mesa.estado)}">${textoEstado(mesa.estado)}</span></div>
       <p class="mt-3 text-sm font-semibold text-slate-500">${escapeHtml(mesa.nota || mesa.grupo?.nombre || "Sin grupo")}</p>
+      ${alertaHtml}
       <div class="mt-4 grid grid-cols-2 gap-2 text-sm"><div class="rounded-2xl bg-slate-50 p-3"><p class="text-xs font-black uppercase text-slate-500">Pendiente</p><p class="font-black">S/ ${soles(mesa.pendiente)}</p></div><div class="rounded-2xl bg-slate-50 p-3"><p class="text-xs font-black uppercase text-slate-500">Pagado</p><p class="font-black">S/ ${soles(mesa.pagado)}</p></div></div>
       <div class="mt-4 grid grid-cols-1 gap-2"><a href="tomar_pedido.html?mesa=${encodeURIComponent(numero)}" class="rounded-2xl bg-orange-500 px-4 py-3 text-center text-sm font-black text-white hover:bg-orange-600">Tomar pedido</a><a href="../Cliente/menu.html?mesa=${encodeURIComponent(numero)}" class="rounded-2xl border border-slate-300 px-4 py-3 text-center text-sm font-black text-slate-700 hover:bg-slate-50">Abrir QR/menu</a></div>
     </article>`;
   }).join("");
 }
 
+async function atenderComentarioMesa(idComentario) {
+  if (!idComentario) return;
+  try {
+    await apiJson(`/mesas/comentarios/${encodeURIComponent(idComentario)}/atender`, { method: "PATCH", body: JSON.stringify({}) });
+    await recargarMesas();
+  } catch (error) {
+    alert(`No se pudo marcar como atendida: ${error.message}`);
+  }
+}
+
 async function restaurarMesasDemo() {
   alert("Ahora las mesas vienen de la base de datos. Para liberar una mesa registra el pago completo de su cuenta.");
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  recargarMesas();
-  setInterval(() => {
-    if (!document.hidden) recargarMesas();
-  }, 15000);
-  function iniciarEscuchaEventosMesas() {
+function iniciarEscuchaEventosMesas() {
+  if (typeof realTime === 'undefined' || !realTime) return;
   realTime.connect();
 
   const handleMesaActualizada = () => {
@@ -103,13 +166,13 @@ document.addEventListener("DOMContentLoaded", () => {
   realTime.on('pedido:actualizado', handleMesaActualizada);
   realTime.on('pago:registrado', handleMesaActualizada);
   realTime.on('cuenta:actualizada', handleMesaActualizada);
+  realTime.on('comentario:mesa', handleMesaActualizada);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   recargarMesas();
   iniciarEscuchaEventosMesas();
   setInterval(() => {
     if (!document.hidden) recargarMesas();
   }, 15000);
-});
 });

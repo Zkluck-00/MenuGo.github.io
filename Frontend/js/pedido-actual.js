@@ -220,6 +220,64 @@ function pedidoHtml(pedido) {
   </article>`;
 }
 
+
+function recargarPedidoActual() {
+  return renderPedidoActual();
+}
+
+function abrirModalComentario() {
+  const modal = document.getElementById("modal-comentario-mesero");
+  if (!modal) return;
+  document.getElementById("motivo-comentario-mesero").value = "";
+  document.getElementById("detalle-comentario-mesero").value = "";
+  modal.classList.remove("hidden");
+  modal.classList.add("flex");
+}
+
+function cerrarModalComentario() {
+  const modal = document.getElementById("modal-comentario-mesero");
+  if (!modal) return;
+  modal.classList.add("hidden");
+  modal.classList.remove("flex");
+}
+
+async function enviarComentarioMesero(event) {
+  event.preventDefault();
+  const mesa = obtenerMesaActual();
+  const numero = String(mesa || "").match(/\d+/)?.[0];
+  const motivo = document.getElementById("motivo-comentario-mesero")?.value || "";
+  const detalle = document.getElementById("detalle-comentario-mesero")?.value || "";
+  const boton = document.getElementById("btn-enviar-comentario-mesero");
+
+  if (!numero) return alert("No se pudo identificar la mesa. Escanea nuevamente el QR.");
+  if (!motivo) return alert("Selecciona el motivo del comentario.");
+
+  try {
+    if (boton) {
+      boton.disabled = true;
+      boton.textContent = "Enviando...";
+    }
+    await apiJson(`/pedidos/mesa/${encodeURIComponent(numero)}/comentario`, {
+      method: "POST",
+      body: JSON.stringify({
+        motivo,
+        detalle,
+        qr_token: obtenerTokenMesaActual(),
+      }),
+    });
+    cerrarModalComentario();
+    document.getElementById("aviso-comentario")?.classList.remove("hidden");
+    alert("Comentario enviado al mesero.");
+  } catch (error) {
+    alert(`No se pudo enviar el comentario: ${error.message}`);
+  } finally {
+    if (boton) {
+      boton.disabled = false;
+      boton.textContent = "Enviar al mesero";
+    }
+  }
+}
+
 async function solicitarCuenta() {
   if (!pedidosActuales.length) {
     alert("No hay pedidos activos para solicitar cuenta.");

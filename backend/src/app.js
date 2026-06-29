@@ -55,6 +55,7 @@ app.get('/api/events', (req, res) => {
   const onPagoRegistrado = (pago) => sendEvent({ type: 'pago:registrado', data: pago });
   const onPagoCruzadoRegistrado = (pago) => sendEvent({ type: 'pago:cruzado:registrado', data: pago });
   const onCuentasActualizadas = (cuentas) => sendEvent({ type: 'cuentas:actualizadas', data: cuentas });
+  const onComentarioMesa = (comentario) => sendEvent({ type: 'comentario:mesa', data: comentario });
   eventEmitter.on('pedido:creado', onPedidoCreado);
   eventEmitter.on('pedido:actualizado', onPedidoActualizado);
   eventEmitter.on('mesa:actualizada', onMesaActualizada);
@@ -62,6 +63,7 @@ app.get('/api/events', (req, res) => {
   eventEmitter.on('pago:registrado', onPagoRegistrado);
  eventEmitter.on('pago:cruzado:registrado', onPagoCruzadoRegistrado);
   eventEmitter.on('cuentas:actualizadas', onCuentasActualizadas);
+  eventEmitter.on('comentario:mesa', onComentarioMesa);
   req.on('close', () => {
     eventEmitter.off('pedido:creado', onPedidoCreado);
     eventEmitter.off('pedido:actualizado', onPedidoActualizado);
@@ -70,6 +72,7 @@ app.get('/api/events', (req, res) => {
     eventEmitter.off('pago:registrado', onPagoRegistrado);
     eventEmitter.off('pago:cruzado:registrado', onPagoCruzadoRegistrado);
     eventEmitter.off('cuentas:actualizadas', onCuentasActualizadas);
+    eventEmitter.off('comentario:mesa', onComentarioMesa);
     res.end();
   });
 });

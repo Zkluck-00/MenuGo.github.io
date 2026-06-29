@@ -38,6 +38,10 @@ class RealTimeEvents extends EventEmitter {
     this.emit('cuentas:actualizadas', cuentas);
   }
 
+  emitComentarioMesa(comentario) {
+    this.emit('comentario:mesa', comentario);
+  }
+
   emitPedidoCancelado(pedido) {
     this.emit('pedido:cancelado', pedido);
   }
