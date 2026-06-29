@@ -121,7 +121,7 @@ const imagenesProductos = {
   "sud-006": "https://comedera.com/wp-content/uploads/sites/9/2022/01/parihuela.jpg", // Parihuela de mero
   "sud-007": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTXwUNEQFvmOeYrHA1R2IOGDwIWpQPCdGhkGA&s", // Parihuela de cabrillón
   "sud-008": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQhp-BMee0q41Z4IWUTZPCjRmwdFS7ciP1X8A&s", // Pasado de cabrillón
-  "sud-009": "https://media-cdn.tripadvisor.com/media/photo-s/09/fb/ab/dc/el-ganso-azul.jpg", // Pasado de mero
+  "sud-009": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQrxPQLrZWnceA-RYqF_TYTZrqt_n-WS6Vq8Ej0dGf0Iv34YJqW-ouvKiE&s=10", // Pasado de mero
   "ent-001": "https://jameaperu.com/assets/images/tequenos_800x534.webp", // Tequeños
   "ent-002": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTLG35XX8rX62tcGXJvh5RhlEqLcTeH6LVhtQ&s", // Pulpo al olivo
   "ent-003": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcRupe809kf6Xk-kNVk2sN6KwWBvWA3CBjU9rg&s", // Tamalito verde
