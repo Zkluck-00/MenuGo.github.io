@@ -1,5 +1,34 @@
 const API_BASE = window.MENUGO_API || "http://localhost:4000/api";
 let carritoResumen = JSON.parse(localStorage.getItem("pedido")) || [];
+const MAX_PLATOS_PEDIDO = 7;
+
+function contarPlatosResumen() {
+  return carritoResumen.reduce((total, item) => total + Number(item.cantidad || 0), 0);
+}
+
+function normalizarResumenMaximo() {
+  let restantes = MAX_PLATOS_PEDIDO;
+  let huboCambios = false;
+  const normalizado = [];
+
+  carritoResumen.forEach((item) => {
+    const cantidadOriginal = Number(item.cantidad || 0);
+    const cantidad = Math.max(0, cantidadOriginal);
+    if (cantidad <= 0 || restantes <= 0) {
+      huboCambios = true;
+      return;
+    }
+    const cantidadPermitida = Math.min(cantidad, restantes);
+    if (cantidadPermitida !== cantidadOriginal) huboCambios = true;
+    normalizado.push({ ...item, cantidad: cantidadPermitida });
+    restantes -= cantidadPermitida;
+  });
+
+  if (huboCambios || normalizado.length !== carritoResumen.length) {
+    carritoResumen = normalizado;
+    localStorage.setItem("pedido", JSON.stringify(carritoResumen));
+  }
+}
 
 function soles(valor) { return Number(valor || 0).toFixed(2); }
 function calcularTotal() { return carritoResumen.reduce((s, item) => s + Number(item.precio || 0) * Number(item.cantidad || 1), 0); }
@@ -14,6 +43,8 @@ async function apiJson(url, options = {}) {
 }
 
 function renderResumenLlevar() {
+  normalizarResumenMaximo();
+
   const lista = document.getElementById("lista-resumen");
   const totalEl = document.getElementById("total-resumen");
   const clienteEl = document.getElementById("cliente-resumen");
@@ -89,7 +120,9 @@ function itemApi(item) {
 }
 
 async function confirmarPedidoLlevar() {
+  normalizarResumenMaximo();
   if (carritoResumen.length === 0) return alert("Agrega al menos un plato antes de confirmar.");
+  if (contarPlatosResumen() > MAX_PLATOS_PEDIDO) return alert(`Solo puedes confirmar maximo ${MAX_PLATOS_PEDIDO} platos/productos por pedido.`);
   const metodoPago = metodoSeleccionado();
   if (!validarPagoSimulado(metodoPago)) return;
 

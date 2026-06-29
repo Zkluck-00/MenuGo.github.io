@@ -707,6 +707,8 @@ async function solicitarCuenta(req, res) {
   const client = await clientePool.connect();
   try {
     const numeroMesa = Number(req.params.id_mesa || req.body.id_mesa);
+    const token = String(req.body.qr_token || req.body.token || "").trim();
+
     if (!numeroMesa) {
       return res.status(400).json({ ok: false, message: "Numero de mesa invalido" });
     }
@@ -714,8 +716,53 @@ async function solicitarCuenta(req, res) {
     await client.query("BEGIN");
     await asegurarTablaSolicitudesCuenta(client);
 
+    if (token) {
+      await validarQrDeMesa(client, numeroMesa, token);
+    }
+
     const grupoExistente = await obtenerGrupoActivoPorMesa(client, numeroMesa);
-    const idGrupoMesa = grupoExistente?.id_grupo_mesa || await asegurarGrupoMesa(client, numeroMesa);
+    if (!grupoExistente) {
+      await client.query("ROLLBACK");
+      return res.status(404).json({ ok: false, message: "No hay pedidos activos para esta mesa" });
+    }
+
+    const pedidosActivos = await client.query(
+      `SELECT p.id_pedido, p.estado
+       FROM pedidos p
+       WHERE p.id_grupo_mesa = $1
+         AND p.estado IN ('pendiente', 'preparando', 'listo', 'entregado')
+         AND EXISTS (
+           SELECT 1
+           FROM detalle_producto dp
+           WHERE dp.id_pedido = p.id_pedido
+             AND (dp.subtotal - COALESCE((
+               SELECT SUM(dpg.monto)
+               FROM detalle_pago dpg
+               INNER JOIN pagos pg ON pg.id_pago = dpg.id_pago
+               WHERE dpg.id_detalle_producto = dp.id_detalle_producto
+                 AND pg.estado_pago = 'pagado'
+             ), 0)) > 0
+         )
+       ORDER BY p.id_pedido ASC`,
+      [grupoExistente.id_grupo_mesa],
+    );
+
+    if (!pedidosActivos.rows.length) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ ok: false, message: "No hay pedidos pendientes de pago para solicitar cuenta" });
+    }
+
+    const pedidosNoEntregados = pedidosActivos.rows.filter((pedido) => pedido.estado !== "entregado");
+    if (pedidosNoEntregados.length > 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({
+        ok: false,
+        message: "Aun no puedes solicitar cuenta. Primero el mesero debe entregar todos los pedidos de la mesa.",
+        data: { pedidos_no_entregados: pedidosNoEntregados.map((pedido) => pedido.id_pedido) },
+      });
+    }
+
+    const idGrupoMesa = grupoExistente.id_grupo_mesa;
     const cuenta = await crearCuentaSiNoExiste(client, idGrupoMesa);
 
     const solicitud = await client.query(

@@ -1,8 +1,55 @@
 let carrito = JSON.parse(localStorage.getItem("pedido")) || [];
 let categoriaActual = "todas";
 let busquedaActual = "";
-const API_BASE = window.MENUGO_API || "http://localhost:4000/api";
+const API_BASE_MENU = window.MENUGO_API || "http://localhost:4000/api";
+const MAX_PLATOS_PEDIDO = 7;
 let productosMenuBD = null;
+
+function contarPlatosCarrito() {
+  return carrito.reduce((total, item) => total + Number(item.cantidad || 0), 0);
+}
+
+function guardarCarritoLocal() {
+  localStorage.setItem("pedido", JSON.stringify(carrito));
+}
+
+function normalizarCarritoMaximo() {
+  let restantes = MAX_PLATOS_PEDIDO;
+  let huboCambios = false;
+  const normalizado = [];
+
+  carrito.forEach((item) => {
+    const cantidadOriginal = Number(item.cantidad || 0);
+    const cantidad = Math.max(0, cantidadOriginal);
+    if (cantidadOriginal !== cantidad) huboCambios = true;
+    if (cantidad <= 0 || restantes <= 0) {
+      huboCambios = true;
+      return;
+    }
+
+    const cantidadPermitida = Math.min(cantidad, restantes);
+    if (cantidadPermitida !== cantidadOriginal) huboCambios = true;
+    normalizado.push({ ...item, cantidad: cantidadPermitida });
+    restantes -= cantidadPermitida;
+  });
+
+  if (huboCambios || normalizado.length !== carrito.length) {
+    carrito = normalizado;
+    guardarCarritoLocal();
+  }
+}
+
+function avisarLimitePedido() {
+  alert(`Solo puedes agregar maximo ${MAX_PLATOS_PEDIDO} platos/productos por pedido.`);
+}
+
+function puedeAgregarPlato() {
+  if (contarPlatosCarrito() >= MAX_PLATOS_PEDIDO) {
+    avisarLimitePedido();
+    return false;
+  }
+  return true;
+}
 
 function productoDesdeBD(producto) {
   const id = producto.codigo_producto || String(producto.id_producto || producto.id);
@@ -280,6 +327,8 @@ function validarLimiteOpcionesProducto(name, checkbox, limite = 2) {
 }
 
 function agregarAlCarrito(idProducto) {
+  if (!puedeAgregarPlato()) return;
+
   const producto = obtenerPlatosDisponibles().find((item) => item.id === idProducto);
   if (!producto) {
     alert("Producto no encontrado.");
@@ -311,7 +360,7 @@ function agregarAlCarrito(idProducto) {
     });
   }
 
-  localStorage.setItem("pedido", JSON.stringify(carrito));
+  guardarCarritoLocal();
   actualizarCarrito();
   mostrarMensajeAgregado(producto.nombre);
 }
@@ -320,22 +369,29 @@ function actualizarCantidad(clave, cambio) {
   const item = carrito.find((producto) => producto.clave === clave);
   if (!item) return;
 
+  if (cambio > 0 && contarPlatosCarrito() >= MAX_PLATOS_PEDIDO) {
+    avisarLimitePedido();
+    return;
+  }
+
   item.cantidad += cambio;
   if (item.cantidad <= 0) {
     carrito = carrito.filter((producto) => producto.clave !== clave);
   }
 
-  localStorage.setItem("pedido", JSON.stringify(carrito));
+  guardarCarritoLocal();
   actualizarCarrito();
 }
 
 function eliminarItem(clave) {
   carrito = carrito.filter((producto) => producto.clave !== clave);
-  localStorage.setItem("pedido", JSON.stringify(carrito));
+  guardarCarritoLocal();
   actualizarCarrito();
 }
 
 function actualizarCarrito() {
+  normalizarCarritoMaximo();
+
   const lista = document.getElementById("lista-carrito");
   const totalEl = document.getElementById("total-carrito");
   const totalMobileEl = document.getElementById("total-carrito-mobile");
@@ -392,11 +448,16 @@ function mostrarMensajeAgregado(nombreProducto) {
 }
 
 function guardarCarrito() {
+  normalizarCarritoMaximo();
   if (carrito.length === 0) {
     alert("Agrega al menos un producto antes de continuar.");
     return;
   }
-  localStorage.setItem("pedido", JSON.stringify(carrito));
+  if (contarPlatosCarrito() > MAX_PLATOS_PEDIDO) {
+    avisarLimitePedido();
+    return;
+  }
+  guardarCarritoLocal();
   window.location.href = obtenerDestinoResumen();
 }
 
