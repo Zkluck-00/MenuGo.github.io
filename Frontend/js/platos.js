@@ -75,7 +75,7 @@ const imagenesProductos = {
   "cev-005": "https://micevichedehoy.com/assets/images/ceviche-de-conchas-negras_800x534.webp", // Ceviche conchas negras
   "cev-006": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcTZYKSo1gbU6QEgqBCHjB9bnRFUZRXisS-iZA&s", // Ceviche de pulpo
   "cev-007": "https://buenazo.cronosmedia.glr.pe/original/2020/10/09/5f80f0086490fc023e0ac831.jpg", // Ceviche langostino
-  "cev-008": "https://www.cocinadelirante.com/sites/default/files/images/2019/10/receta-de-ceviche-de-mero.jpg", // Ceviche de mero
+  "cev-008": "https://img2.rtve.es/n/1628853?w=1600", // Ceviche de mero
   "cev-009": "https://www.shutterstock.com/image-photo/ceviche-mixto-traditional-peruvian-dish-600nw-2582938301.jpg", // Ceviche mixto de filete
   "cev-010": "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQI0UXFzfE1kVv0CRqMhN-uw1xM-IhcmGBdwg&s", // Ceviche de calamar
   "cev-011": "https://media-cdn.tripadvisor.com/media/photo-s/10/0a/5d/0e/ceviche-mixto-pescado.jpg", // Ceviche de langostinos
