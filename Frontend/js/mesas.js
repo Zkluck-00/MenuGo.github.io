@@ -2,6 +2,7 @@ if (window.MENUGO_PERSONAL_BLOQUEADO) { throw new Error('Acceso bloqueado. Inici
 const API_BASE = window.MENUGO_API || "http://localhost:4000/api";
 let filtroMesas = "todas";
 let mesasBase = [];
+let pedidosLlevarListos = [];
 
 function soles(valor) { return Number(valor || 0).toFixed(2); }
 function escapeHtml(valor) { return String(valor ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
@@ -18,13 +19,20 @@ async function cargarMesas() {
   mesasBase = data.data || [];
 }
 
+async function cargarPedidosLlevarListos() {
+  const data = await apiJson("/pedidos?rol=mesero&tipo=llevar&estado=listo");
+  pedidosLlevarListos = data.data || [];
+}
+
 async function recargarMesas() {
   const contenedor = document.getElementById("contenedor-mesas");
   if (contenedor) contenedor.innerHTML = `<div class="col-span-full rounded-3xl bg-white p-8 text-center font-bold text-slate-500">Cargando mesas desde la BD...</div>`;
   try {
     await cargarMesas();
+    await cargarPedidosLlevarListos();
     renderEstadisticasMesas();
     renderAlertasComentariosMesa();
+    renderPedidosLlevarListos();
     renderMesas();
   } catch (error) {
     if (contenedor) contenedor.innerHTML = `<div class="col-span-full rounded-3xl border border-red-200 bg-red-50 p-8 text-center text-red-700"><h2 class="text-2xl font-black">No se pudo cargar mesas</h2><p class="mt-2 text-sm font-semibold">${escapeHtml(error.message)}</p></div>`;
@@ -149,6 +157,62 @@ function renderAlertasComentariosMesa() {
           <p class="mt-2 text-sm font-semibold text-slate-600">${escapeHtml(alerta.detalle)}</p>
         </article>`).join("")}
     </div>`;
+}
+
+function renderPedidosLlevarListos() {
+  const panel = document.getElementById("pedidos-llevar-listos");
+  if (!panel) return;
+
+  if (!pedidosLlevarListos.length) {
+    panel.classList.add("hidden");
+    panel.innerHTML = "";
+    return;
+  }
+
+  panel.classList.remove("hidden");
+  panel.innerHTML = `
+    <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p class="text-xs font-black uppercase tracking-wide text-emerald-700">Pedidos para llevar</p>
+        <h2 class="text-xl font-black text-slate-950">${pedidosLlevarListos.length} pedido(s) listo(s) para recoger</h2>
+      </div>
+      <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-black text-emerald-700">Atender en caja / entrega</span>
+    </div>
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+      ${pedidosLlevarListos.map((pedido) => {
+        const codigo = pedido.codigo_seguimiento || pedido.codigo_llevar || pedido.codigo || `LLEV-${String(pedido.id_pedido || pedido.id || "").padStart(3, "0")}`;
+        return `
+          <article class="rounded-2xl border border-emerald-200 bg-white p-4 shadow-sm">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <p class="text-xs font-black uppercase tracking-wide text-emerald-700">Listo para recoger</p>
+                <h3 class="mt-1 text-2xl font-black text-slate-950">${escapeHtml(codigo)}</h3>
+                <p class="mt-1 text-sm font-semibold text-slate-600">${escapeHtml(pedido.cliente || pedido.nombre_cliente || "Cliente")}</p>
+                <p class="text-sm font-semibold text-slate-500">Cel: ${escapeHtml(pedido.telefono_llevar || pedido.telefono || "No registrado")}</p>
+              </div>
+              <button type="button" onclick="entregarPedidoLlevar('${escapeHtml(String(pedido.id_pedido || pedido.id))}')" class="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Entregado</button>
+            </div>
+            <div class="mt-3 rounded-2xl bg-emerald-50 p-3 text-sm">
+              <p><strong>Total:</strong> S/ ${soles(pedido.total)}</p>
+              <p><strong>Pago:</strong> ${escapeHtml(pedido.estadoPago || "Pendiente")}</p>
+              <p><strong>Estado:</strong> ${escapeHtml(pedido.estadoPedido || pedido.estado || "Listo para recoger")}</p>
+            </div>
+          </article>`;
+      }).join("")}
+    </div>`;
+}
+
+async function entregarPedidoLlevar(idPedido) {
+  if (!idPedido) return;
+  try {
+    await apiJson(`/pedidos/${encodeURIComponent(idPedido)}/estado`, {
+      method: "PATCH",
+      body: JSON.stringify({ estado: "entregado", rol: "mesero" }),
+    });
+    await recargarMesas();
+  } catch (error) {
+    alert(`No se pudo marcar el pedido como entregado: ${error.message}`);
+  }
 }
 
 function renderMesas() {

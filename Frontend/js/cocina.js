@@ -151,6 +151,7 @@ function renderPedido(pedido) {
         <p><strong>Tipo:</strong> ${escapeHtml(pedido.tipoConsumo || pedido.tipo_pedido || "No definido")}</p>
         <p><strong>Mesa:</strong> ${escapeHtml(pedido.mesa || "No aplica")}</p>
         <p><strong>Cliente:</strong> ${escapeHtml(pedido.cliente || pedido.nombre_cliente || "Consumidor final")}</p>
+        ${esPedidoLlevar(pedido) ? `<p><strong>Celular:</strong> ${escapeHtml(pedido.telefono_llevar || pedido.telefono || "No registrado")}</p>` : ""}
         <p><strong>Total:</strong> S/ ${soles(pedido.total)}</p>
       </div>
       <ul class="mb-4 space-y-2">${productosHtml}</ul>
@@ -182,23 +183,22 @@ function recargarCocina() {
   mostrarPedidos();
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-  mostrarPedidos();
-  setInterval(mostrarPedidos, 15000);
-  function iniciarEscuchaEventosCocina() {
+function iniciarEscuchaEventosCocina() {
+  if (typeof realTime === "undefined" || !realTime) return;
   realTime.connect();
 
   const handlePedidoActualizado = () => {
     mostrarPedidos();
   };
 
-  realTime.on('pedido:creado', handlePedidoActualizado);
-  realTime.on('pedido:actualizado', handlePedidoActualizado);
+  realTime.on("pedido:creado", handlePedidoActualizado);
+  realTime.on("pedido:actualizado", handlePedidoActualizado);
 }
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener("DOMContentLoaded", () => {
   mostrarPedidos();
   iniciarEscuchaEventosCocina();
-  setInterval(mostrarPedidos, 15000);
-});
+  setInterval(() => {
+    if (!document.hidden) mostrarPedidos();
+  }, 15000);
 });

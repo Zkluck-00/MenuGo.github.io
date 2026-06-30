@@ -32,3 +32,10 @@ CREATE TABLE IF NOT EXISTS solicitudes_cuenta (
 
 CREATE INDEX IF NOT EXISTS idx_solicitudes_cuenta_pendientes
 ON solicitudes_cuenta(id_grupo_mesa, estado, fecha_solicitud DESC);
+
+-- MenuGo - soporte para seguimiento de pedidos para llevar
+-- No se crea una tabla nueva: se utiliza la tabla pedidos existente.
+-- El codigo visible del cliente se genera como LLEV-001, LLEV-002, etc. a partir del id_pedido.
+CREATE INDEX IF NOT EXISTS idx_pedidos_llevar_estado
+ON pedidos(tipo_pedido, estado, fecha_creacion DESC)
+WHERE tipo_pedido = 'llevar';

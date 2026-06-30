@@ -352,12 +352,20 @@ async function obtenerDetallePedido(clientOrPool, idPedido) {
   }));
 }
 
-function estadoTextoFrontend(estado) {
+function codigoPedidoFrontend(row) {
+  if (row.tipo_pedido === "llevar") {
+    return row.codigo_llevar || `LLEV-${String(row.id_pedido).padStart(3, "0")}`;
+  }
+  return `PED-${row.id_pedido}`;
+}
+
+function estadoTextoFrontend(estado, tipoPedido) {
+  const esLlevar = tipoPedido === "llevar";
   const map = {
-    pendiente: "Pendiente",
+    pendiente: esLlevar ? "Pendiente en cocina" : "Pendiente",
     preparando: "En preparación",
-    listo: "Listo para llevar a la mesa",
-    entregado: "Entregado",
+    listo: esLlevar ? "Listo para recoger" : "Listo para llevar a la mesa",
+    entregado: esLlevar ? "Entregado al cliente" : "Entregado",
     pagado: "Pagado",
     cancelado: "Cancelado",
   };
@@ -373,7 +381,9 @@ async function mapPedido(clientOrPool, row) {
   return {
     id: row.id_pedido,
     id_pedido: row.id_pedido,
-    codigo: `PED-${row.id_pedido}`,
+    codigo: codigoPedidoFrontend(row),
+    codigo_llevar: row.tipo_pedido === "llevar" ? codigoPedidoFrontend(row) : null,
+    codigo_seguimiento: row.tipo_pedido === "llevar" ? codigoPedidoFrontend(row) : null,
     tipo_pedido: row.tipo_pedido,
     tipoConsumo,
     origen: row.registrado_por ? "Mesero" : "QR cliente",
@@ -390,9 +400,10 @@ async function mapPedido(clientOrPool, row) {
     productos,
     items: productos,
     total: Number(row.total || productos.reduce((s, p) => s + p.subtotal, 0)),
-    estado: estadoTextoFrontend(row.estado),
-    estadoPedido: estadoTextoFrontend(row.estado),
+    estado: estadoTextoFrontend(row.estado, row.tipo_pedido),
+    estadoPedido: estadoTextoFrontend(row.estado, row.tipo_pedido),
     estado_db: row.estado,
+    estado_seguimiento: row.estado,
     total_pagado: Number(row.total_pagado || 0),
     pago_completo: Number(row.total_pagado || 0) >= Number(row.total || productos.reduce((s, p) => s + p.subtotal, 0)),
     estadoPago: Number(row.total_pagado || 0) >= Number(row.total || productos.reduce((s, p) => s + p.subtotal, 0)) ? "Pagado" : "Pendiente",
@@ -416,6 +427,11 @@ async function obtenerPedidoRows(pool, filtros = {}) {
     where.push(`p.tipo_pedido = $${params.length}`);
   }
 
+  if (filtros.idPedido) {
+    params.push(Number(filtros.idPedido));
+    where.push(`p.id_pedido = $${params.length}`);
+  }
+
   if (filtros.idMesa) {
     params.push(Number(filtros.idMesa));
     where.push(`EXISTS (
@@ -428,6 +444,15 @@ async function obtenerPedidoRows(pool, filtros = {}) {
 
   const sql = `
     SELECT p.*,
+           CASE
+             WHEN p.tipo_pedido = 'llevar' THEN 'LLEV-' || LPAD((
+               SELECT COUNT(*)
+               FROM pedidos px
+               WHERE px.tipo_pedido = 'llevar'
+                 AND px.id_pedido <= p.id_pedido
+             )::text, 3, '0')
+             ELSE NULL
+           END AS codigo_llevar,
            u.telefono,
            gm.nombre_grupo,
            gm.mesa_principal,
@@ -468,7 +493,8 @@ async function listarPedidos(req, res) {
     if (rol === "cocina" && estados.length === 0) estados = ["pendiente", "preparando", "listo", "pagado"];
     if (rol === "mesero" && estados.length === 0) estados = ["listo", "entregado", "pagado"];
 
-    const rows = await obtenerPedidoRows(meseroPool, { estados });
+    const tipo = req.query.tipo ? normalizarTexto(req.query.tipo) : null;
+    const rows = await obtenerPedidoRows(meseroPool, { estados, tipo });
     const data = [];
     for (const row of rows) data.push(await mapPedido(meseroPool, row));
     res.json({ ok: true, data });
@@ -703,6 +729,42 @@ async function obtenerPedidosMesa(req, res) {
   }
 }
 
+async function obtenerSeguimientoLlevar(req, res) {
+  try {
+    const codigo = String(req.params.codigo || req.query.codigo || "").trim().toUpperCase();
+    const match = codigo.match(/(\d+)/);
+    if (!match) {
+      return res.status(400).json({ ok: false, message: "Codigo de seguimiento invalido" });
+    }
+
+    const numeroCodigo = Number(match[1]);
+    const pedidoCodigo = await clientePool.query(
+      `WITH pedidos_llevar AS (
+         SELECT id_pedido, ROW_NUMBER() OVER (ORDER BY id_pedido ASC) AS numero_llevar
+         FROM pedidos
+         WHERE tipo_pedido = 'llevar'
+       )
+       SELECT id_pedido
+       FROM pedidos_llevar
+       WHERE numero_llevar = $1
+       LIMIT 1`,
+      [numeroCodigo],
+    );
+
+    const idPedido = pedidoCodigo.rows[0]?.id_pedido || numeroCodigo;
+    const rows = await obtenerPedidoRows(clientePool, { idPedido, tipo: "llevar" });
+    if (!rows.length) {
+      return res.status(404).json({ ok: false, message: "No encontramos un pedido para llevar con ese codigo" });
+    }
+
+    const pedido = await mapPedido(clientePool, rows[0]);
+    res.json({ ok: true, data: pedido });
+  } catch (error) {
+    console.error("Error al obtener seguimiento para llevar:", error);
+    res.status(500).json({ ok: false, message: "Error al obtener seguimiento del pedido", error: error.message });
+  }
+}
+
 async function solicitarCuenta(req, res) {
   const client = await clientePool.connect();
   try {
@@ -856,6 +918,7 @@ module.exports = {
   actualizarEstadoPedido,
   obtenerPedidosMesa,
   solicitarCuenta,
+  obtenerSeguimientoLlevar,
   enviarComentarioMesa,
   obtenerPedidoRows,
   mapPedido,

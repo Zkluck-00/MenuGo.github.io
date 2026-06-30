@@ -26,14 +26,34 @@
         <div class="rounded-3xl bg-white p-5 shadow-md shadow-slate-900/5">
           <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 class="text-xl font-black text-slate-950">Detalle del pedido</h2>
-              <p class="text-sm font-semibold text-slate-500">Cliente: <span id="cliente-resumen">Cliente</span></p>
+              <h2 class="text-xl font-black text-slate-950">Datos para recoger</h2>
+              <p class="text-sm font-semibold text-slate-500">Cliente: <span id="cliente-resumen">Cliente para llevar</span></p>
             </div>
             <a href="MenuParaLlevar.html" class="rounded-2xl border border-slate-300 px-4 py-2 text-center text-sm font-black text-slate-700 hover:bg-slate-50">Seguir agregando</a>
           </div>
+          <div class="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+            <label class="block">
+              <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Nombre del cliente</span>
+              <input id="nombre-llevar" type="text" maxlength="60" placeholder="Ejemplo: Juan Perez"
+                class="w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-orange-400">
+            </label>
+            <label class="block">
+              <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Celular</span>
+              <input id="celular-llevar" type="text" inputmode="numeric" maxlength="9" placeholder="999999999"
+                class="w-full rounded-2xl border border-slate-200 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-orange-400">
+            </label>
+          </div>
+          <label class="mt-3 block">
+            <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Comentario opcional para cocina o recojo</span>
+            <textarea id="observacion-llevar" rows="3" maxlength="180" placeholder="Ejemplo: recoger en 25 minutos, sin cebolla, boleta, etc."
+              class="w-full rounded-2xl border border-slate-200 px-4 py-3 font-semibold outline-none focus:ring-2 focus:ring-orange-400"></textarea>
+          </label>
         </div>
 
-        <div id="lista-resumen" class="space-y-3"></div>
+        <div class="rounded-3xl bg-white p-5 shadow-md shadow-slate-900/5">
+          <h2 class="mb-4 text-xl font-black text-slate-950">Detalle del pedido</h2>
+          <div id="lista-resumen" class="space-y-3"></div>
+        </div>
       </div>
 
       <aside class="h-fit rounded-3xl bg-white p-5 shadow-md shadow-slate-900/5 lg:sticky lg:top-6">
