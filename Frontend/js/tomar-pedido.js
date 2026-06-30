@@ -512,7 +512,6 @@ async function confirmarPedidoMesero() {
         </div>
         <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
           <a href="tomar_pedido.html?mesa=${encodeURIComponent(mesaSeleccionadaMesero)}" class="rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600">Agregar otro</a>
-          <a href="../Cocina/pedidos.html" class="rounded-2xl bg-slate-950 px-5 py-3 text-sm font-black text-white hover:bg-slate-800">Ver cocina</a>
           <a href="mesas.html" class="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">Ver mesas</a>
         </div>
       </section>`;
