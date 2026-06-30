@@ -17,3 +17,18 @@ CREATE TABLE IF NOT EXISTS comentarios_mesa (
 
 CREATE INDEX IF NOT EXISTS idx_comentarios_mesa_pendientes
 ON comentarios_mesa(numero_mesa, estado, fecha_creacion DESC);
+
+-- MenuGo - notificacion al mesero cuando el cliente solicita cuenta
+CREATE TABLE IF NOT EXISTS solicitudes_cuenta (
+    id_solicitud SERIAL PRIMARY KEY,
+    id_grupo_mesa INTEGER NOT NULL REFERENCES grupos_mesa(id_grupo_mesa) ON DELETE CASCADE,
+    id_cuenta INTEGER REFERENCES cuentas(id_cuenta) ON DELETE SET NULL,
+    estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+    nota TEXT,
+    fecha_solicitud TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atendido_at TIMESTAMP,
+    CONSTRAINT chk_solicitud_estado CHECK (estado IN ('pendiente', 'atendida', 'cancelada'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_solicitudes_cuenta_pendientes
+ON solicitudes_cuenta(id_grupo_mesa, estado, fecha_solicitud DESC);

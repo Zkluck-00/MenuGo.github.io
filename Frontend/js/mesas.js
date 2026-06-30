@@ -68,13 +68,57 @@ function alertaDeMesa(mesa) {
   return mesa.alertaCliente || mesa.comentario_cliente || null;
 }
 
+function solicitudCuentaDeMesa(mesa) {
+  return mesa.solicitudCuenta || mesa.solicitud_cuenta || null;
+}
+
+function notificacionesDeMesa(mesa) {
+  const notificaciones = [];
+  const alerta = alertaDeMesa(mesa);
+  const solicitudCuenta = solicitudCuentaDeMesa(mesa);
+
+  if (alerta) {
+    notificaciones.push({
+      tipo: "comentario",
+      mesa,
+      id: alerta.id_comentario_mesa,
+      etiqueta: "Aviso del cliente",
+      titulo: alerta.motivo || "Informe del cliente",
+      detalle: alerta.detalle || "Sin detalle adicional",
+      color: "orange",
+    });
+  }
+
+  if (solicitudCuenta) {
+    notificaciones.push({
+      tipo: "cuenta",
+      mesa,
+      id: solicitudCuenta.id_solicitud,
+      etiqueta: "Solicitud de cuenta",
+      titulo: "Cliente solicita cuenta",
+      detalle: solicitudCuenta.nota || "El cliente solicita que el mesero se acerque para cobrar la cuenta.",
+      color: "blue",
+    });
+  }
+
+  return notificaciones;
+}
+
+function botonAtenderNotificacion(notificacion, modo = "oscuro") {
+  const clase = modo === "claro"
+    ? "rounded-xl bg-white px-3 py-2 text-xs font-black text-orange-700 ring-1 ring-orange-200"
+    : "rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white";
+  const accion = notificacion.tipo === "cuenta"
+    ? `atenderSolicitudCuenta('${escapeHtml(String(notificacion.id))}')`
+    : `atenderComentarioMesa('${escapeHtml(String(notificacion.id))}')`;
+  return `<button type="button" onclick="${accion}" class="${clase}">Atendida</button>`;
+}
+
 function renderAlertasComentariosMesa() {
   const panel = document.getElementById("alertas-comentarios-mesa");
   if (!panel) return;
 
-  const alertas = mesasBase
-    .map((mesa) => ({ mesa, alerta: alertaDeMesa(mesa) }))
-    .filter((item) => item.alerta);
+  const alertas = mesasBase.flatMap((mesa) => notificacionesDeMesa(mesa));
 
   if (!alertas.length) {
     panel.classList.add("hidden");
@@ -87,21 +131,22 @@ function renderAlertasComentariosMesa() {
     <div class="mb-3 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <p class="text-xs font-black uppercase tracking-wide text-orange-700">Notificaciones de clientes</p>
-        <h2 class="text-xl font-black text-slate-950">${alertas.length} mesa(s) requieren atencion</h2>
+        <h2 class="text-xl font-black text-slate-950">${alertas.length} aviso(s) requieren atencion</h2>
       </div>
       <span class="rounded-full bg-orange-100 px-3 py-1 text-xs font-black text-orange-700">Pendiente de revision</span>
     </div>
     <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-      ${alertas.map(({ mesa, alerta }) => `
-        <article class="rounded-2xl border border-orange-200 bg-white p-4 shadow-sm">
+      ${alertas.map((alerta) => `
+        <article class="rounded-2xl border ${alerta.tipo === "cuenta" ? "border-blue-200" : "border-orange-200"} bg-white p-4 shadow-sm">
           <div class="flex items-start justify-between gap-3">
             <div>
-              <p class="text-xs font-black uppercase tracking-wide text-slate-500">Mesa ${escapeHtml(mesa.numero_mesa || mesa.numero)}</p>
-              <h3 class="mt-1 text-lg font-black text-orange-700">${escapeHtml(alerta.motivo)}</h3>
+              <p class="text-xs font-black uppercase tracking-wide text-slate-500">Mesa ${escapeHtml(alerta.mesa.numero_mesa || alerta.mesa.numero)}</p>
+              <p class="text-xs font-black uppercase tracking-wide ${alerta.tipo === "cuenta" ? "text-blue-700" : "text-orange-700"}">${escapeHtml(alerta.etiqueta)}</p>
+              <h3 class="mt-1 text-lg font-black ${alerta.tipo === "cuenta" ? "text-blue-700" : "text-orange-700"}">${escapeHtml(alerta.titulo)}</h3>
             </div>
-            <button type="button" onclick="atenderComentarioMesa('${escapeHtml(String(alerta.id_comentario_mesa))}')" class="rounded-xl bg-slate-950 px-3 py-2 text-xs font-black text-white">Atendida</button>
+            ${botonAtenderNotificacion(alerta)}
           </div>
-          <p class="mt-2 text-sm font-semibold text-slate-600">${escapeHtml(alerta.detalle || "Sin detalle adicional")}</p>
+          <p class="mt-2 text-sm font-semibold text-slate-600">${escapeHtml(alerta.detalle)}</p>
         </article>`).join("")}
     </div>`;
 }
@@ -116,20 +161,20 @@ function renderMesas() {
   }
   contenedor.innerHTML = mesas.map((mesa) => {
     const numero = mesa.numero_mesa || mesa.numero;
-    const alerta = alertaDeMesa(mesa);
-    const alertaHtml = alerta ? `
-      <div class="mt-4 rounded-2xl border border-orange-200 bg-orange-50 p-3">
+    const notificaciones = notificacionesDeMesa(mesa);
+    const alertaHtml = notificaciones.length ? notificaciones.map((alerta) => `
+      <div class="mt-4 rounded-2xl border ${alerta.tipo === "cuenta" ? "border-blue-200 bg-blue-50" : "border-orange-200 bg-orange-50"} p-3">
         <div class="flex items-start justify-between gap-2">
           <div>
-            <p class="text-xs font-black uppercase tracking-wide text-orange-700">Aviso del cliente</p>
-            <p class="mt-1 text-sm font-black text-orange-800">${escapeHtml(alerta.motivo)}</p>
+            <p class="text-xs font-black uppercase tracking-wide ${alerta.tipo === "cuenta" ? "text-blue-700" : "text-orange-700"}">${escapeHtml(alerta.etiqueta)}</p>
+            <p class="mt-1 text-sm font-black ${alerta.tipo === "cuenta" ? "text-blue-800" : "text-orange-800"}">${escapeHtml(alerta.titulo)}</p>
           </div>
-          <button type="button" onclick="atenderComentarioMesa('${escapeHtml(String(alerta.id_comentario_mesa))}')" class="rounded-xl bg-white px-3 py-2 text-xs font-black text-orange-700 ring-1 ring-orange-200">Atendida</button>
+          ${botonAtenderNotificacion(alerta, "claro")}
         </div>
-        <p class="mt-2 text-xs font-semibold text-orange-800">${escapeHtml(alerta.detalle || "Sin detalle adicional")}</p>
-      </div>` : "";
+        <p class="mt-2 text-xs font-semibold ${alerta.tipo === "cuenta" ? "text-blue-800" : "text-orange-800"}">${escapeHtml(alerta.detalle)}</p>
+      </div>`).join("") : "";
 
-    return `<article class="rounded-3xl border ${alerta ? 'border-orange-300' : 'border-slate-200'} bg-white p-5 shadow-lg shadow-slate-900/5">
+    return `<article class="rounded-3xl border ${notificaciones.length ? 'border-orange-300' : 'border-slate-200'} bg-white p-5 shadow-lg shadow-slate-900/5">
       <div class="flex items-start justify-between gap-3"><div><p class="text-sm font-black uppercase tracking-wide text-slate-500">Mesa</p><h2 class="text-3xl font-black text-slate-950">${numero}</h2></div><span class="rounded-full px-3 py-1.5 text-xs font-black ring-1 ${claseEstado(mesa.estado)}">${textoEstado(mesa.estado)}</span></div>
       <p class="mt-3 text-sm font-semibold text-slate-500">${escapeHtml(mesa.nota || mesa.grupo?.nombre || "Sin grupo")}</p>
       ${alertaHtml}
@@ -146,6 +191,16 @@ async function atenderComentarioMesa(idComentario) {
     await recargarMesas();
   } catch (error) {
     alert(`No se pudo marcar como atendida: ${error.message}`);
+  }
+}
+
+async function atenderSolicitudCuenta(idSolicitud) {
+  if (!idSolicitud) return;
+  try {
+    await apiJson(`/mesas/solicitudes-cuenta/${encodeURIComponent(idSolicitud)}/atender`, { method: "PATCH", body: JSON.stringify({}) });
+    await recargarMesas();
+  } catch (error) {
+    alert(`No se pudo marcar la solicitud de cuenta como atendida: ${error.message}`);
   }
 }
 

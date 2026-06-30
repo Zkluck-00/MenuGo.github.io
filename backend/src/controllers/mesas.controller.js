@@ -32,6 +32,35 @@ function mapearAlertaCliente(row) {
   };
 }
 
+async function asegurarTablaSolicitudesCuentaMesa() {
+  await meseroPool.query(`
+    CREATE TABLE IF NOT EXISTS solicitudes_cuenta (
+      id_solicitud SERIAL PRIMARY KEY,
+      id_grupo_mesa INTEGER NOT NULL REFERENCES grupos_mesa(id_grupo_mesa) ON DELETE CASCADE,
+      id_cuenta INTEGER REFERENCES cuentas(id_cuenta) ON DELETE SET NULL,
+      estado VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+      nota TEXT,
+      fecha_solicitud TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      atendido_at TIMESTAMP,
+      CONSTRAINT chk_solicitud_estado CHECK (estado IN ('pendiente', 'atendida', 'cancelada'))
+    )
+  `);
+  await meseroPool.query(`CREATE INDEX IF NOT EXISTS idx_solicitudes_cuenta_pendientes ON solicitudes_cuenta(id_grupo_mesa, estado, fecha_solicitud DESC)`);
+}
+
+function mapearSolicitudCuenta(row) {
+  if (!row.id_solicitud_cuenta) return null;
+  return {
+    id_solicitud: row.id_solicitud_cuenta,
+    id_cuenta: row.solicitud_id_cuenta || null,
+    estado: row.solicitud_estado || "pendiente",
+    nota: row.solicitud_nota || "El cliente solicita la cuenta",
+    fecha_solicitud: row.solicitud_fecha,
+    motivo: "Solicitud de cuenta",
+    detalle: row.solicitud_nota || "El cliente solicita que el mesero se acerque para cobrar la cuenta.",
+  };
+}
+
 async function asegurarMesa(client, numero) {
   const n = Number(numero);
   const existente = await client.query("SELECT id_mesa FROM mesas WHERE numero_mesa = $1", [n]);
@@ -43,6 +72,7 @@ async function asegurarMesa(client, numero) {
 async function listarMesas(req, res) {
   try {
     await asegurarTablaComentariosMesa();
+    await asegurarTablaSolicitudesCuentaMesa();
     const { rows } = await meseroPool.query(`
       SELECT 
         m.id_mesa,
@@ -90,7 +120,12 @@ async function listarMesas(req, res) {
         cm.motivo AS comentario_motivo,
         cm.detalle AS comentario_detalle,
         cm.estado AS comentario_estado,
-        cm.fecha_creacion AS comentario_fecha
+        cm.fecha_creacion AS comentario_fecha,
+        sc.id_solicitud AS id_solicitud_cuenta,
+        sc.id_cuenta AS solicitud_id_cuenta,
+        sc.estado AS solicitud_estado,
+        sc.nota AS solicitud_nota,
+        sc.fecha_solicitud AS solicitud_fecha
       FROM mesas m
       LEFT JOIN grupo_mesa_detalle gmd ON gmd.id_mesa = m.id_mesa
       LEFT JOIN grupos_mesa gm ON gm.id_grupo_mesa = gmd.id_grupo_mesa AND gm.estado = 'activo'
@@ -104,6 +139,14 @@ async function listarMesas(req, res) {
         ORDER BY cm.fecha_creacion DESC, cm.id_comentario_mesa DESC
         LIMIT 1
       ) cm ON true
+      LEFT JOIN LATERAL (
+        SELECT id_solicitud, id_cuenta, estado, nota, fecha_solicitud
+        FROM solicitudes_cuenta sc
+        WHERE sc.id_grupo_mesa = gm.id_grupo_mesa
+          AND sc.estado = 'pendiente'
+        ORDER BY sc.fecha_solicitud DESC, sc.id_solicitud DESC
+        LIMIT 1
+      ) sc ON true
       GROUP BY 
         m.id_mesa, 
         m.numero_mesa, 
@@ -115,7 +158,12 @@ async function listarMesas(req, res) {
         cm.motivo,
         cm.detalle,
         cm.estado,
-        cm.fecha_creacion
+        cm.fecha_creacion,
+        sc.id_solicitud,
+        sc.id_cuenta,
+        sc.estado,
+        sc.nota,
+        sc.fecha_solicitud
       ORDER BY m.numero_mesa ASC
     `);
 
@@ -137,13 +185,17 @@ async function listarMesas(req, res) {
           total_pendiente: 0,
           total_pagado: 0,
           tiene_grupo: false,
-          alerta_cliente: mapearAlertaCliente(row)
+          alerta_cliente: mapearAlertaCliente(row),
+          solicitud_cuenta: mapearSolicitudCuenta(row)
         });
       }
       
       const mesaActual = mesaMap.get(numero);
       if (!mesaActual.alerta_cliente && row.id_comentario_mesa) {
         mesaActual.alerta_cliente = mapearAlertaCliente(row);
+      }
+      if (!mesaActual.solicitud_cuenta && row.id_solicitud_cuenta) {
+        mesaActual.solicitud_cuenta = mapearSolicitudCuenta(row);
       }
       
       if (row.id_grupo_mesa && Number(row.total_pendiente) > 0) {
@@ -194,6 +246,8 @@ async function listarMesas(req, res) {
         pagado: row.total_pagado,
         alertaCliente: row.alerta_cliente,
         comentario_cliente: row.alerta_cliente,
+        solicitudCuenta: row.solicitud_cuenta,
+        solicitud_cuenta: row.solicitud_cuenta,
       };
     });
 
@@ -457,4 +511,39 @@ async function atenderComentarioMesa(req, res) {
   }
 }
 
-module.exports = { listarMesas, validarQrMesa, listarQrMesas, cambiarEstadoMesa, unirMesas, desunirMesas, getInfoMesas, atenderComentarioMesa };
+async function atenderSolicitudCuenta(req, res) {
+  try {
+    await asegurarTablaSolicitudesCuentaMesa();
+    const id = Number(req.params.id);
+    if (!id) return res.status(400).json({ ok: false, message: "Solicitud de cuenta invalida" });
+
+    const { rows } = await meseroPool.query(
+      `UPDATE solicitudes_cuenta
+       SET estado = 'atendida', atendido_at = CURRENT_TIMESTAMP
+       WHERE id_solicitud = $1
+       RETURNING id_solicitud, id_grupo_mesa, id_cuenta, estado, nota, fecha_solicitud, atendido_at`,
+      [id],
+    );
+    if (!rows.length) return res.status(404).json({ ok: false, message: "Solicitud de cuenta no encontrada" });
+
+    const mesa = await meseroPool.query(
+      `SELECT m.numero_mesa
+       FROM grupo_mesa_detalle gmd
+       INNER JOIN mesas m ON m.id_mesa = gmd.id_mesa
+       WHERE gmd.id_grupo_mesa = $1
+       ORDER BY m.numero_mesa ASC
+       LIMIT 1`,
+      [rows[0].id_grupo_mesa],
+    );
+    const numeroMesa = mesa.rows[0]?.numero_mesa || null;
+
+    eventEmitter.emitCuentaActualizada({ tipo: "solicitud_cuenta_atendida", solicitud: rows[0], numero_mesa: numeroMesa });
+    eventEmitter.emitMesaActualizada({ numero_mesa: numeroMesa, tipo: "solicitud_cuenta_atendida", solicitud: rows[0] });
+    res.json({ ok: true, message: "Solicitud de cuenta marcada como atendida", data: rows[0] });
+  } catch (error) {
+    console.error("Error al atender solicitud de cuenta:", error);
+    res.status(500).json({ ok: false, message: "Error al atender solicitud de cuenta", error: error.message });
+  }
+}
+
+module.exports = { listarMesas, validarQrMesa, listarQrMesas, cambiarEstadoMesa, unirMesas, desunirMesas, getInfoMesas, atenderComentarioMesa, atenderSolicitudCuenta };

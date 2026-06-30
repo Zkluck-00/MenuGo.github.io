@@ -764,17 +764,30 @@ async function solicitarCuenta(req, res) {
 
     const idGrupoMesa = grupoExistente.id_grupo_mesa;
     const cuenta = await crearCuentaSiNoExiste(client, idGrupoMesa);
+    const notaSolicitud = req.body.nota || "Cliente solicita cuenta desde seguimiento";
 
-    const solicitud = await client.query(
-      `INSERT INTO solicitudes_cuenta (id_grupo_mesa, id_cuenta, estado, nota)
-       VALUES ($1, $2, 'pendiente', $3)
-       RETURNING *`,
-      [idGrupoMesa, cuenta, req.body.nota || "Cliente solicita cuenta desde seguimiento"],
+    const solicitudPendiente = await client.query(
+      `SELECT *
+       FROM solicitudes_cuenta
+       WHERE id_grupo_mesa = $1
+         AND estado = 'pendiente'
+       ORDER BY fecha_solicitud DESC, id_solicitud DESC
+       LIMIT 1`,
+      [idGrupoMesa],
     );
 
+    const solicitud = solicitudPendiente.rows.length
+      ? solicitudPendiente
+      : await client.query(
+          `INSERT INTO solicitudes_cuenta (id_grupo_mesa, id_cuenta, estado, nota)
+           VALUES ($1, $2, 'pendiente', $3)
+           RETURNING *`,
+          [idGrupoMesa, cuenta, notaSolicitud],
+        );
+
     await client.query("COMMIT");
-    eventEmitter.emitCuentaActualizada({ id_grupo_mesa: idGrupoMesa, id_cuenta: cuenta, tipo: "solicitud_cuenta", numero_mesa: numeroMesa });
-    eventEmitter.emitMesaActualizada({ numero_mesa: numeroMesa, tipo: "solicitud_cuenta" });
+    eventEmitter.emitCuentaActualizada({ id_grupo_mesa: idGrupoMesa, id_cuenta: cuenta, tipo: "solicitud_cuenta", numero_mesa: numeroMesa, solicitud: solicitud.rows[0] });
+    eventEmitter.emitMesaActualizada({ numero_mesa: numeroMesa, tipo: "solicitud_cuenta", solicitud: solicitud.rows[0] });
     res.json({ ok: true, message: "Solicitud de cuenta registrada", data: solicitud.rows[0] });
   } catch (error) {
     await client.query("ROLLBACK");
