@@ -1,4 +1,6 @@
-if (window.MENUGO_PERSONAL_BLOQUEADO) { throw new Error('Acceso bloqueado. Inicia sesion.'); }
+if (window.MENUGO_PERSONAL_BLOQUEADO) {
+  throw new Error("Acceso bloqueado. Inicia sesion.");
+}
 // MenuGo - pedido manual tomado por el mesero conectado a PostgreSQL.
 // El pedido va a cocina; el panel del mesero no lo vera hasta que cocina lo marque listo.
 
@@ -10,7 +12,9 @@ const STORAGE_PEDIDOS_MESERO = "pedidos";
 const STORAGE_MESAS_MESERO = "mesas";
 
 let categoriaActualMesero = "todas";
-let pedidoTemporalMesero = JSON.parse(localStorage.getItem(STORAGE_PEDIDO_TEMPORAL_MESERO) || "[]");
+let pedidoTemporalMesero = JSON.parse(
+  localStorage.getItem(STORAGE_PEDIDO_TEMPORAL_MESERO) || "[]",
+);
 let mesaSeleccionadaMesero = "1";
 let productosMeseroBD = null;
 
@@ -28,13 +32,17 @@ function escapeHtmlMesero(valor) {
 }
 
 function nombreCategoriaMesero(id) {
-  return categorias.find((categoria) => categoria.id === id)?.nombre || "Todos los platos";
+  return (
+    categorias.find((categoria) => categoria.id === id)?.nombre ||
+    "Todos los platos"
+  );
 }
 
 function obtenerMesaInicialMesero() {
   const params = new URLSearchParams(window.location.search);
   const mesaUrl = params.get("mesa");
-  const mesaGuardada = localStorage.getItem("mesaActual") || localStorage.getItem("mesa");
+  const mesaGuardada =
+    localStorage.getItem("mesaActual") || localStorage.getItem("mesa");
   const valor = mesaUrl || mesaGuardada || "1";
   return String(valor).replace(/[^0-9]/g, "") || "1";
 }
@@ -71,12 +79,18 @@ function actualizarMesaPanel() {
 }
 
 function productoMeseroDesdeBD(producto) {
-  const id = producto.codigo_producto || String(producto.id_producto || producto.id);
+  const id =
+    producto.codigo_producto || String(producto.id_producto || producto.id);
   const productoLocal = buscarProductoLocalMenuGo({ ...producto, id });
-  const categoriaOriginal = producto.categoria || producto.tipo_producto || producto.tipo || "plato";
-  const categoria = productoLocal?.categoria && ["plato", "bebida", "otros"].includes(normalizarTextoMenuGo(categoriaOriginal))
-    ? productoLocal.categoria
-    : categoriaOriginal;
+  const categoriaOriginal =
+    producto.categoria || producto.tipo_producto || producto.tipo || "plato";
+  const categoria =
+    productoLocal?.categoria &&
+    ["plato", "bebida", "otros"].includes(
+      normalizarTextoMenuGo(categoriaOriginal),
+    )
+      ? productoLocal.categoria
+      : categoriaOriginal;
   const normalizado = {
     ...producto,
     id,
@@ -84,7 +98,8 @@ function productoMeseroDesdeBD(producto) {
     nombre: producto.nombre || productoLocal?.nombre || "Producto sin nombre",
     descripcion: producto.descripcion || productoLocal?.descripcion || "",
     categoria,
-    imagen: producto.imagen || productoLocal?.imagen || IMAGEN_PLATO_PLACEHOLDER,
+    imagen:
+      producto.imagen || productoLocal?.imagen || IMAGEN_PLATO_PLACEHOLDER,
   };
 
   return {
@@ -99,30 +114,37 @@ async function cargarProductosMeseroDesdeBD() {
     const data = await apiJsonMesero("/productos/disponibles");
     productosMeseroBD = (data.data || []).map(productoMeseroDesdeBD);
   } catch (error) {
-    console.warn("Usando menu local porque no se pudo leer la BD:", error.message);
+    console.warn(
+      "Usando menu local porque no se pudo leer la BD:",
+      error.message,
+    );
     productosMeseroBD = null;
   }
 }
 
 function obtenerPlatosMesero() {
-  return productosMeseroBD && productosMeseroBD.length ? productosMeseroBD : (productosMenu || []);
+  return productosMeseroBD && productosMeseroBD.length
+    ? productosMeseroBD
+    : productosMenu || [];
 }
 
 function renderCategoriasMesero() {
   const contenedor = document.getElementById("categorias-container");
   if (!contenedor) return;
 
-  contenedor.innerHTML = categorias.map((categoria) => {
-    const activo = categoria.id === categoriaActualMesero;
-    const clases = activo
-      ? "whitespace-nowrap rounded-full border border-slate-950 bg-slate-950 px-4 py-2 text-sm font-black text-white shadow-sm"
-      : "whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-slate-950 hover:bg-slate-950 hover:text-white";
+  contenedor.innerHTML = categorias
+    .map((categoria) => {
+      const activo = categoria.id === categoriaActualMesero;
+      const clases = activo
+        ? "whitespace-nowrap rounded-full border border-slate-950 bg-slate-950 px-4 py-2 text-sm font-black text-white shadow-sm"
+        : "whitespace-nowrap rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 transition hover:border-slate-950 hover:bg-slate-950 hover:text-white";
 
-    return `
+      return `
       <button type="button" class="${clases}" onclick="filtrarCategoriaMesero('${categoria.id}')">
         ${escapeHtmlMesero(categoria.nombre)}
       </button>`;
-  }).join("");
+    })
+    .join("");
 }
 
 function renderPlatosMesero() {
@@ -131,14 +153,16 @@ function renderPlatosMesero() {
   if (!contenedor) return;
 
   const platosBase = obtenerPlatosMesero();
-  const filtrados = categoriaActualMesero === "todas"
-    ? platosBase
-    : platosBase.filter((plato) => plato.categoria === categoriaActualMesero);
+  const filtrados =
+    categoriaActualMesero === "todas"
+      ? platosBase
+      : platosBase.filter((plato) => plato.categoria === categoriaActualMesero);
 
   if (titulo) {
-    titulo.textContent = categoriaActualMesero === "todas"
-      ? "Todos los platos"
-      : nombreCategoriaMesero(categoriaActualMesero);
+    titulo.textContent =
+      categoriaActualMesero === "todas"
+        ? "Todos los platos"
+        : nombreCategoriaMesero(categoriaActualMesero);
   }
 
   if (filtrados.length === 0) {
@@ -155,36 +179,50 @@ function renderPlatosMesero() {
 
 function crearCardPlatoMesero(plato) {
   const varianteDefault = plato.variantes[0];
-  const precioTexto = plato.variantes.length === 1
-    ? `S/ ${solesMesero(varianteDefault.precio)}`
-    : plato.variantes.map((variante) => `${escapeHtmlMesero(variante.nombre)}: S/ ${solesMesero(variante.precio)}`).join(" · ");
+  const precioTexto =
+    plato.variantes.length === 1
+      ? `S/ ${solesMesero(varianteDefault.precio)}`
+      : plato.variantes
+          .map(
+            (variante) =>
+              `${escapeHtmlMesero(variante.nombre)}: S/ ${solesMesero(variante.precio)}`,
+          )
+          .join(" · ");
 
-  const variantesHtml = plato.variantes.map((variante, index) => {
-    const inputId = `${plato.id}-mesero-var-${index}`;
-    return `
+  const variantesHtml = plato.variantes
+    .map((variante, index) => {
+      const inputId = `${plato.id}-mesero-var-${index}`;
+      return `
       <label for="${inputId}" class="cursor-pointer">
         <input class="peer sr-only" type="radio" name="mesero-variante-${plato.id}" id="${inputId}" value="${index}" ${index === 0 ? "checked" : ""}>
         <span class="inline-flex rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 transition peer-checked:border-slate-950 peer-checked:bg-slate-950 peer-checked:text-white hover:border-slate-950">
           ${escapeHtmlMesero(variante.nombre)}
         </span>
       </label>`;
-  }).join("");
+    })
+    .join("");
 
-  const limiteOpciones = typeof LIMITE_OPCIONES_PRODUCTO !== "undefined" ? LIMITE_OPCIONES_PRODUCTO : 2;
-  const opcionesHtml = plato.opciones.map((opcion, index) => {
-    const inputId = `${plato.id}-mesero-op-${index}`;
-    return `
+  const limiteOpciones =
+    typeof LIMITE_OPCIONES_PRODUCTO !== "undefined"
+      ? LIMITE_OPCIONES_PRODUCTO
+      : 2;
+  const opcionesHtml = plato.opciones
+    .map((opcion, index) => {
+      const inputId = `${plato.id}-mesero-op-${index}`;
+      return `
       <label for="${inputId}" class="cursor-pointer">
         <input class="peer sr-only" type="checkbox" name="mesero-opcion-${plato.id}" id="${inputId}" value="${escapeHtmlMesero(opcion)}" ${index === 0 ? "checked" : ""} onchange="validarLimiteOpcionesMesero('mesero-opcion-${plato.id}', this, ${limiteOpciones})">
         <span class="inline-flex rounded-full border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-slate-700 transition peer-checked:border-orange-500 peer-checked:bg-orange-500 peer-checked:text-white hover:border-orange-500">
           ${escapeHtmlMesero(opcion)}
         </span>
       </label>`;
-  }).join("");
+    })
+    .join("");
 
-  const avisoOpcionesHtml = plato.opciones.length > limiteOpciones
-    ? `<p class="mb-2 text-xs font-semibold text-orange-600">Puedes escoger máximo ${limiteOpciones} opciones.</p>`
-    : "";
+  const avisoOpcionesHtml =
+    plato.opciones.length > limiteOpciones
+      ? `<p class="mb-2 text-xs font-semibold text-orange-600">Puedes escoger máximo ${limiteOpciones} opciones.</p>`
+      : "";
 
   return `
     <article class="flex h-full flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-lg shadow-slate-900/5 transition hover:-translate-y-0.5 hover:shadow-xl hover:shadow-slate-900/10">
@@ -204,11 +242,15 @@ function crearCardPlatoMesero(plato) {
           ${precioTexto}
         </div>
 
-        ${plato.variantes.length > 1 ? `
+        ${
+          plato.variantes.length > 1
+            ? `
           <div class="mb-3">
             <p class="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">Tamaño / presentación</p>
             <div class="flex flex-wrap gap-2">${variantesHtml}</div>
-          </div>` : `<input type="hidden" name="mesero-variante-${plato.id}" value="0">`}
+          </div>`
+            : `<input type="hidden" name="mesero-variante-${plato.id}" value="0">`
+        }
 
         <div class="mb-4">
           <p class="mb-2 text-xs font-black uppercase tracking-wide text-slate-500">¿Cómo quiere el plato?</p>
@@ -241,7 +283,9 @@ function obtenerSeleccionesMesero(name) {
 }
 
 function validarLimiteOpcionesMesero(name, checkbox, limite = 2) {
-  const seleccionadas = document.querySelectorAll(`input[name="${name}"]:checked`);
+  const seleccionadas = document.querySelectorAll(
+    `input[name="${name}"]:checked`,
+  );
   if (seleccionadas.length <= limite) return true;
 
   checkbox.checked = false;
@@ -250,7 +294,10 @@ function validarLimiteOpcionesMesero(name, checkbox, limite = 2) {
 }
 
 function guardarPedidoTemporal() {
-  localStorage.setItem(STORAGE_PEDIDO_TEMPORAL_MESERO, JSON.stringify(pedidoTemporalMesero));
+  localStorage.setItem(
+    STORAGE_PEDIDO_TEMPORAL_MESERO,
+    JSON.stringify(pedidoTemporalMesero),
+  );
 }
 
 function agregarPlatoTemporal(idPlato) {
@@ -260,9 +307,13 @@ function agregarPlatoTemporal(idPlato) {
     return;
   }
 
-  const varianteIndex = Number(obtenerSeleccionMesero(`mesero-variante-${idPlato}`) || 0);
+  const varianteIndex = Number(
+    obtenerSeleccionMesero(`mesero-variante-${idPlato}`) || 0,
+  );
   const variante = plato.variantes[varianteIndex] || plato.variantes[0];
-  const opcionesSeleccionadas = obtenerSeleccionesMesero(`mesero-opcion-${idPlato}`);
+  const opcionesSeleccionadas = obtenerSeleccionesMesero(
+    `mesero-opcion-${idPlato}`,
+  );
   const opcion = opcionesSeleccionadas.length
     ? opcionesSeleccionadas.join(" + ")
     : "Preparación normal";
@@ -291,12 +342,16 @@ function agregarPlatoTemporal(idPlato) {
 }
 
 function actualizarCantidadTemporal(clave, cambio) {
-  const item = pedidoTemporalMesero.find((producto) => producto.clave === clave);
+  const item = pedidoTemporalMesero.find(
+    (producto) => producto.clave === clave,
+  );
   if (!item) return;
 
   item.cantidad += cambio;
   if (item.cantidad <= 0) {
-    pedidoTemporalMesero = pedidoTemporalMesero.filter((producto) => producto.clave !== clave);
+    pedidoTemporalMesero = pedidoTemporalMesero.filter(
+      (producto) => producto.clave !== clave,
+    );
   }
 
   guardarPedidoTemporal();
@@ -304,13 +359,19 @@ function actualizarCantidadTemporal(clave, cambio) {
 }
 
 function eliminarTemporal(clave) {
-  pedidoTemporalMesero = pedidoTemporalMesero.filter((producto) => producto.clave !== clave);
+  pedidoTemporalMesero = pedidoTemporalMesero.filter(
+    (producto) => producto.clave !== clave,
+  );
   guardarPedidoTemporal();
   renderPedidoTemporal();
 }
 
 function totalPedidoTemporal() {
-  return pedidoTemporalMesero.reduce((suma, item) => suma + Number(item.precio || 0) * Number(item.cantidad || 1), 0);
+  return pedidoTemporalMesero.reduce(
+    (suma, item) =>
+      suma + Number(item.precio || 0) * Number(item.cantidad || 1),
+    0,
+  );
 }
 
 function renderPedidoTemporal() {
@@ -324,7 +385,9 @@ function renderPedidoTemporal() {
   if (pedidoTemporalMesero.length === 0) {
     lista.innerHTML = `<div class="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-4 py-8 text-center text-sm font-bold text-slate-500">Todavía no hay platos agregados.</div>`;
   } else {
-    lista.innerHTML = pedidoTemporalMesero.map((item) => `
+    lista.innerHTML = pedidoTemporalMesero
+      .map(
+        (item) => `
       <div class="mb-3 rounded-2xl border border-slate-200 bg-slate-50 p-3">
         <div class="flex items-start justify-between gap-3">
           <strong class="text-sm font-black leading-snug text-slate-950">${escapeHtmlMesero(item.nombre)}</strong>
@@ -339,7 +402,9 @@ function renderPedidoTemporal() {
           </div>
           <strong class="text-sm font-black text-slate-950">S/ ${solesMesero(item.precio * item.cantidad)}</strong>
         </div>
-      </div>`).join("");
+      </div>`,
+      )
+      .join("");
   }
 
   const total = totalPedidoTemporal();
@@ -356,7 +421,9 @@ function vaciarPedidoTemporal() {
 }
 
 function obtenerMesasGuardadas() {
-  const guardadas = JSON.parse(localStorage.getItem(STORAGE_MESAS_MESERO) || "null");
+  const guardadas = JSON.parse(
+    localStorage.getItem(STORAGE_MESAS_MESERO) || "null",
+  );
   if (Array.isArray(guardadas) && guardadas.length > 0) return guardadas;
   return Array.from({ length: TOTAL_MESAS_MESERO }, (_, index) => ({
     numero: index + 1,
@@ -370,7 +437,9 @@ function marcarMesaOcupada(numeroMesa) {
   const mesas = obtenerMesasGuardadas();
   const numero = Number(numeroMesa);
   const grupoActivo = obtenerGrupoActivoParaMesa(numero);
-  const mesasGrupo = grupoActivo ? new Set(grupoActivo.mesas.map(Number)) : new Set([numero]);
+  const mesasGrupo = grupoActivo
+    ? new Set(grupoActivo.mesas.map(Number))
+    : new Set([numero]);
   const actualizadas = mesas.map((mesa) => {
     if (!mesasGrupo.has(Number(mesa.numero))) return mesa;
     return {
@@ -384,13 +453,17 @@ function marcarMesaOcupada(numeroMesa) {
   localStorage.setItem(STORAGE_MESAS_MESERO, JSON.stringify(actualizadas));
 }
 
-
 function obtenerGrupoActivoParaMesa(numeroMesa) {
   const grupos = JSON.parse(localStorage.getItem("gruposMesas") || "[]");
   const numero = Number(numeroMesa);
-  return grupos.find((grupo) =>
-    grupo.estado === "activo" && Array.isArray(grupo.mesas) && grupo.mesas.map(Number).includes(numero),
-  ) || null;
+  return (
+    grupos.find(
+      (grupo) =>
+        grupo.estado === "activo" &&
+        Array.isArray(grupo.mesas) &&
+        grupo.mesas.map(Number).includes(numero),
+    ) || null
+  );
 }
 
 function crearPedidoMesero() {
@@ -409,8 +482,12 @@ function crearPedidoMesero() {
     cliente: grupoActivo ? grupoActivo.nombre : `Mesa ${mesa}`,
     grupoMesa: grupoActivo?.nombre,
     grupoMesaId: grupoActivo?.id,
-    mesaPrincipal: grupoActivo ? `Mesa ${grupoActivo.mesaPrincipal}` : undefined,
-    mesasUnidas: grupoActivo ? grupoActivo.mesas.map((numero) => `Mesa ${numero}`) : undefined,
+    mesaPrincipal: grupoActivo
+      ? `Mesa ${grupoActivo.mesaPrincipal}`
+      : undefined,
+    mesasUnidas: grupoActivo
+      ? grupoActivo.mesas.map((numero) => `Mesa ${numero}`)
+      : undefined,
     productos: pedidoTemporalMesero.map((item) => ({
       id: item.id,
       nombre: item.nombre,
@@ -429,7 +506,10 @@ function crearPedidoMesero() {
     estadoPago: "Pendiente",
     metodoPago: "Cobro por mesero",
     fecha: ahora.toLocaleDateString("es-PE"),
-    hora: ahora.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }),
+    hora: ahora.toLocaleTimeString("es-PE", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
     fechaISO: ahora.toISOString(),
   };
 }
@@ -440,7 +520,8 @@ async function apiJsonMesero(url, options = {}) {
     ...options,
   });
   const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.ok === false) throw new Error(data.message || data.error || "Error de servidor");
+  if (!response.ok || data.ok === false)
+    throw new Error(data.message || data.error || "Error de servidor");
   return data;
 }
 
@@ -469,7 +550,9 @@ async function confirmarPedidoMesero() {
     return;
   }
 
-  const boton = document.querySelector('button[onclick="confirmarPedidoMesero()"]');
+  const boton = document.querySelector(
+    'button[onclick="confirmarPedidoMesero()"]',
+  );
   if (boton) boton.disabled = true;
 
   try {
@@ -510,10 +593,14 @@ async function confirmarPedidoMesero() {
           <p><strong>Total:</strong> S/ ${solesMesero(pedido.total)}</p>
           <p><strong>Estado cocina:</strong> ${escapeHtmlMesero(pedido.estadoPedido || "Pendiente")}</p>
         </div>
-        <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <a href="tomar_pedido.html?mesa=${encodeURIComponent(mesaSeleccionadaMesero)}" class="rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white hover:bg-orange-600">Agregar otro</a>
-          <a href="mesas.html" class="rounded-2xl border border-slate-300 px-5 py-3 text-sm font-black text-slate-700 hover:bg-slate-50">Ver mesas</a>
-        </div>
+        <div class="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2">
+          <a href="tomar_pedido.html?mesa=${encodeURIComponent(mesaSeleccionadaMesero)}" class="rounded-2xl bg-orange-500 px-5 py-3 text-center text-sm font-black text-white hover:bg-orange-600">
+    Agregar otro
+          </a>
+          <a href="mesas.html" class="rounded-2xl border border-slate-300 px-5 py-3 text-center text-sm font-black text-slate-700 hover:bg-slate-50">
+    Ver mesas
+          </a>
+       </div>
       </section>`;
   } catch (error) {
     alert(`No se pudo registrar el pedido en la BD: ${error.message}`);
@@ -530,7 +617,8 @@ function togglePedidoTemporal() {
 
 function mostrarToastMesero(mensaje) {
   const toast = document.createElement("div");
-  toast.className = "fixed right-5 top-5 z-[60] rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-2xl shadow-emerald-900/20";
+  toast.className =
+    "fixed right-5 top-5 z-[60] rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white shadow-2xl shadow-emerald-900/20";
   toast.innerHTML = `
     <div class="flex items-center gap-3">
       <span>${escapeHtmlMesero(mensaje)}</span>
