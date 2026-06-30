@@ -39,3 +39,50 @@ ON solicitudes_cuenta(id_grupo_mesa, estado, fecha_solicitud DESC);
 CREATE INDEX IF NOT EXISTS idx_pedidos_llevar_estado
 ON pedidos(tipo_pedido, estado, fecha_creacion DESC)
 WHERE tipo_pedido = 'llevar';
+
+-- MenuGo - credenciales de trabajadores por rol
+ALTER TABLE trabajador
+ADD COLUMN IF NOT EXISTS usuario_acceso VARCHAR(100);
+
+ALTER TABLE trabajador
+ADD COLUMN IF NOT EXISTS clave_acceso VARCHAR(255);
+
+-- Permite estados legibles usados por el panel: Activo, Inactivo, Suspendido.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'trabajador'
+      AND column_name = 'estado'
+      AND data_type = 'boolean'
+  ) THEN
+    ALTER TABLE trabajador
+    ALTER COLUMN estado TYPE VARCHAR(20)
+    USING CASE WHEN estado = true THEN 'Activo' ELSE 'Inactivo' END;
+  END IF;
+END $$;
+
+ALTER TABLE trabajador
+ALTER COLUMN estado SET DEFAULT 'Activo';
+
+UPDATE trabajador
+SET usuario_acceso = correo
+WHERE usuario_acceso IS NULL
+  AND correo IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trabajador_usuario_acceso
+ON trabajador(LOWER(usuario_acceso))
+WHERE usuario_acceso IS NOT NULL;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_trabajador_correo_acceso
+ON trabajador(LOWER(correo))
+WHERE correo IS NOT NULL;
+
+-- MenuGo - disponibilidad independiente para consumo local y pedidos para llevar
+ALTER TABLE platos
+ADD COLUMN IF NOT EXISTS disponible_llevar BOOLEAN NOT NULL DEFAULT true;
+
+CREATE INDEX IF NOT EXISTS idx_platos_disponibilidad_cliente
+ON platos(activo, disponible_llevar, cantidad_de_platos);

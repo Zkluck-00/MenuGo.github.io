@@ -11,7 +11,8 @@ function mapProducto(row) {
     descripcion: row.descripcion || "",
     categoria: row.categoria || row.tipo_producto,
     precio: Number(row.precio),
-    disponible: Boolean(row.activo),
+    disponible: row.disponible_local !== undefined ? Boolean(row.disponible_local) : Boolean(row.activo),
+    disponible_local: row.disponible_local !== undefined ? Boolean(row.disponible_local) : Boolean(row.activo),
     disponible_llevar: row.disponible_llevar === undefined ? true : Boolean(row.disponible_llevar),
     activo: Boolean(row.activo),
     imagen: row.imagen || null,
@@ -27,6 +28,7 @@ const productosSql = `
          categoria,
          precio,
          disponible_llevar,
+         (activo = true AND cantidad_de_platos > 0) AS disponible_local,
          activo,
          imagen
   FROM platos
@@ -39,6 +41,7 @@ const productosSql = `
          categoria,
          precio,
          true AS disponible_llevar,
+         (activo = true AND cantidad_de_bebidas > 0) AS disponible_local,
          activo,
          imagen
   FROM bebidas
@@ -66,11 +69,12 @@ async function listarDisponibles(req, res) {
                categoria,
                precio,
                disponible_llevar,
+               (activo = true AND cantidad_de_platos > 0) AS disponible_local,
                activo,
                cantidad_de_platos AS stock,
                imagen
         FROM platos
-        WHERE activo = true AND cantidad_de_platos > 0
+        WHERE activo = true AND (cantidad_de_platos > 0 OR disponible_llevar = true)
         UNION ALL
         SELECT id_bebida AS id_producto,
                codigo_bebida AS codigo_producto,
@@ -80,6 +84,7 @@ async function listarDisponibles(req, res) {
                categoria,
                precio,
                true AS disponible_llevar,
+               (activo = true AND cantidad_de_bebidas > 0) AS disponible_local,
                activo,
                cantidad_de_bebidas AS stock,
                imagen

@@ -6,6 +6,8 @@ const PERSONAL_AUTH_KEYS = {
   cocina: 'menugo_cocina_sesion'
 };
 
+const API_BASE_PERSONAL = window.MENUGO_API || "http://localhost:4000/api";
+
 const PERSONAL_CREDENTIALS = {
   mesero: {
     nombre: 'Mesero MenuGo',
@@ -44,15 +46,14 @@ function obtenerKeySesionPersonal(rol) {
 
 function obtenerSesionPersonal(rol) {
   const key = obtenerKeySesionPersonal(rol);
-  const config = obtenerConfigPersonal(rol);
-  if (!key || !config) return null;
+  if (!key) return null;
 
   try {
     const sesion = JSON.parse(localStorage.getItem(key) || 'null');
-    const emailValido = normalizarPersonal(sesion?.email) === normalizarPersonal(config.email);
-    const rolValido = normalizarPersonal(sesion?.rol) === normalizarPersonal(config.rol);
+    const rolEsperado = normalizarPersonal(rol) === 'cocina' ? 'cocina' : 'mesero';
+    const rolSesion = normalizarPersonal(sesion?.rol);
 
-    if (!sesion || !emailValido || !rolValido) {
+    if (!sesion || rolSesion !== rolEsperado) {
       localStorage.removeItem(key);
       return null;
     }
@@ -65,7 +66,7 @@ function obtenerSesionPersonal(rol) {
   }
 }
 
-function iniciarSesionPersonal(rol, email, password) {
+async function iniciarSesionPersonal(rol, email, password) {
   const config = obtenerConfigPersonal(rol);
   const key = obtenerKeySesionPersonal(rol);
 
@@ -73,25 +74,48 @@ function iniciarSesionPersonal(rol, email, password) {
     throw new Error('Rol no valido.');
   }
 
-  const emailCorrecto = normalizarPersonal(email) === normalizarPersonal(config.email);
-  const passwordCorrecto = String(password || '') === config.password;
+  try {
+    const response = await fetch(`${API_BASE_PERSONAL}/admin/personal/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ usuario: email, clave: password, rol })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) throw new Error(data.message || 'Credenciales invalidas');
 
-  if (!emailCorrecto || !passwordCorrecto) {
-    throw new Error('Correo o contrasena incorrectos.');
+    const sesion = {
+      email: data.data?.email || email,
+      nombre: data.data?.nombre || config.nombre,
+      rol: normalizarPersonal(rol) === 'cocina' ? 'cocina' : 'mesero',
+      rolTexto: data.data?.rol || config.rol,
+      inicioSesion: new Date().toISOString()
+    };
+
+    localStorage.setItem(key, JSON.stringify(sesion));
+    return sesion;
+  } catch (error) {
+    const emailCorrecto = normalizarPersonal(email) === normalizarPersonal(config.email);
+    const passwordCorrecto = String(password || '') === config.password;
+
+    if (!emailCorrecto || !passwordCorrecto) {
+      throw new Error(error.message || 'Correo o contrasena incorrectos.');
+    }
+
+    const sesion = {
+      email: config.email,
+      nombre: config.nombre,
+      rol: normalizarPersonal(rol) === 'cocina' ? 'cocina' : 'mesero',
+      rolTexto: config.rol,
+      inicioSesion: new Date().toISOString()
+    };
+
+    localStorage.setItem(key, JSON.stringify(sesion));
+    return sesion;
   }
-
-  const sesion = {
-    email: config.email,
-    nombre: config.nombre,
-    rol: config.rol,
-    inicioSesion: new Date().toISOString()
-  };
-
-  localStorage.setItem(key, JSON.stringify(sesion));
-  return sesion;
 }
 
 function cerrarSesionPersonal(rol = null) {
+  if (!confirm('¿Seguro que deseas cerrar sesión?')) return;
   const rolActual = rol || obtenerRolPorRutaPersonal();
   const key = obtenerKeySesionPersonal(rolActual);
   if (key) localStorage.removeItem(key);
@@ -122,7 +146,7 @@ function insertarBarraSesionPersonal(rol, sesion) {
   barra.id = 'menu-go-personal-session';
   barra.className = 'fixed bottom-4 right-4 z-50 flex max-w-[calc(100%-2rem)] items-center gap-3 rounded-2xl bg-slate-950 px-4 py-3 text-xs font-bold text-white shadow-2xl shadow-slate-900/30';
   barra.innerHTML = `
-    <span class="hidden sm:inline">${sesion.rol}: ${sesion.email}</span>
+    <span class="hidden sm:inline">${sesion.rolTexto || sesion.rol}: ${sesion.email}</span>
     <span class="sm:hidden">${sesion.rol}</span>
     <button type="button" class="rounded-xl bg-white/10 px-3 py-2 font-black hover:bg-white/20" onclick="cerrarSesionPersonal('${rol}')">Cerrar sesion</button>
   `;
@@ -187,12 +211,12 @@ function configurarLoginPersonal() {
     mostrarMensaje('Sesion cerrada correctamente.', 'ok');
   }
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
     try {
       const email = document.getElementById('login-email')?.value || '';
       const password = document.getElementById('login-password')?.value || '';
-      iniciarSesionPersonal(rol, email, password);
+      await iniciarSesionPersonal(rol, email, password);
       window.location.href = config.inicio;
     } catch (error) {
       mostrarMensaje(error.message, 'error');

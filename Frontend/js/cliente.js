@@ -93,7 +93,8 @@ async function cargarProductosDesdeBD() {
 }
 
 function obtenerPlatosDisponibles() {
-  return productosMenuBD && productosMenuBD.length ? productosMenuBD : productosMenu;
+  const base = productosMenuBD && productosMenuBD.length ? productosMenuBD : productosMenu;
+  return productosMenuBD ? base.filter((producto) => producto.disponible_local !== false && producto.disponible !== false) : base;
 }
 
 function obtenerDestinoResumen() {

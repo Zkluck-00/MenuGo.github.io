@@ -3,6 +3,7 @@ const router = express.Router();
 const adminController = require('../controllers/admin.controller');
 
 router.post('/login', adminController.login);
+router.post('/personal/login', adminController.loginPersonal);
 
 
 router.get('/dashboard', adminController.getDashboard);
@@ -14,6 +15,7 @@ router.get('/platos/mas-vendidos', adminController.getPlatosMasVendidos);
 router.get('/productos', adminController.getProductos);
 router.post('/productos', adminController.createProducto);
 router.patch('/productos/:id/disponibilidad', adminController.actualizarDisponibilidadProducto);
+router.patch('/productos/:id/disponible-llevar', adminController.actualizarDisponibleLlevarProducto);
 router.delete('/productos/:id', adminController.deleteProducto);
 
 

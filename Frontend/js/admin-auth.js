@@ -31,7 +31,7 @@ function normalizarAdmin(valor) {
 function obtenerSesionAdmin() {
   try {
     const sesion = JSON.parse(localStorage.getItem(ADMIN_KEYS.sesion) || "null");
-    if (!sesion || normalizarAdmin(sesion.email) !== normalizarAdmin(ADMIN_DEFAULT.email)) {
+    if (!sesion || normalizarAdmin(sesion.rol) !== normalizarAdmin("Administrador")) {
       localStorage.removeItem(ADMIN_KEYS.sesion);
       return null;
     }
@@ -43,11 +43,11 @@ function obtenerSesionAdmin() {
   }
 }
 
-function crearSesionAdmin() {
+function crearSesionAdmin(usuario = null) {
   const sesion = {
-    email: ADMIN_DEFAULT.email,
-    nombre: ADMIN_DEFAULT.nombre,
-    rol: ADMIN_DEFAULT.rol,
+    email: usuario?.correo || usuario?.email || ADMIN_DEFAULT.email,
+    nombre: usuario?.nombre || ADMIN_DEFAULT.nombre,
+    rol: "Administrador",
     inicioSesion: new Date().toISOString(),
   };
 
@@ -56,6 +56,7 @@ function crearSesionAdmin() {
 }
 
 function cerrarSesionAdmin() {
+  if (!confirm("¿Seguro que deseas cerrar sesión?")) return;
   localStorage.removeItem(ADMIN_KEYS.sesion);
   window.location.href = "login.html?logout=1";
 }
@@ -66,7 +67,7 @@ async function iniciarSesionAdmin(email, password) {
       method: "POST",
       body: JSON.stringify({ usuario: email, clave: password })
     });
-    return crearSesionAdmin();
+    return crearSesionAdmin(data.data);
   } catch (error) {
     const emailCorrecto = normalizarAdmin(email) === normalizarAdmin(ADMIN_DEFAULT.email);
     const passwordCorrecto = String(password || "") === ADMIN_DEFAULT.password;

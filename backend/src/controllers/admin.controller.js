@@ -99,6 +99,31 @@ async function passwordCoincide(claveIngresada, claveGuardada) {
   return String(claveIngresada || '') === guardada;
 }
 
+
+function estadoTrabajadorActivo(valor) {
+  return valor === true || valor === 'true' || String(valor || '').toLowerCase() === 'activo';
+}
+
+function normalizarRolAcceso(rol) {
+  const valor = String(rol || '').trim().toLowerCase();
+  if (['mesero', 'mozo', 'camarero'].includes(valor)) return 'mesero';
+  if (['cocina', 'cocinero', 'cocinera', 'chef'].includes(valor)) return 'cocina';
+  if (['admin', 'administrador', 'administradora'].includes(valor)) return 'administrador';
+  return valor;
+}
+
+function inicioPorRol(rol) {
+  const normalizado = normalizarRolAcceso(rol);
+  if (normalizado === 'mesero') return 'mesas.html';
+  if (normalizado === 'cocina') return 'pedidos.html';
+  if (normalizado === 'administrador') return 'dashboard.html';
+  return 'login.html';
+}
+
+function nombreCompletoTrabajador(row) {
+  return `${row.nombres || ''} ${row.apellidos || ''}`.trim() || row.correo || row.usuario_acceso || 'Trabajador';
+}
+
 async function health(req, res) {
   res.json({ ok: true, status: 'connected', timestamp: new Date().toISOString() });
 }
@@ -119,28 +144,57 @@ async function login(req, res) {
       [usuario]
     );
 
-    if (result.rows.length === 0) {
-      return res.status(401).json({ ok: false, message: 'Usuario o clave incorrectos' });
-    }
+    if (result.rows.length > 0) {
+      const admin = result.rows[0];
+      const claveOk = await passwordCoincide(clave, admin.clave);
 
-    const admin = result.rows[0];
-    const claveOk = await passwordCoincide(clave, admin.clave);
-
-    if (!claveOk || admin.estado !== true) {
-      return res.status(401).json({ ok: false, message: 'Usuario o clave incorrectos' });
-    }
-
-    res.json({
-      ok: true,
-      token: `temp-token-${Date.now()}`,
-      message: 'Inicio de sesion exitoso',
-      data: {
-        id_administrador: admin.idadministrador,
-        usuario: admin.usuario,
-        nombre: admin.nombrecompleto,
-        correo: admin.correo
+      if (claveOk && admin.estado === true) {
+        return res.json({
+          ok: true,
+          token: `temp-token-${Date.now()}`,
+          message: 'Inicio de sesion exitoso',
+          data: {
+            id_administrador: admin.idadministrador,
+            usuario: admin.usuario,
+            nombre: admin.nombrecompleto,
+            correo: admin.correo,
+            rol: 'Administrador'
+          }
+        });
       }
-    });
+    }
+
+    // Tambien permite que un trabajador con rol Administrador ingrese al panel admin.
+    const trabajador = await adminPool.query(
+      `SELECT idtrabajador, nombres, apellidos, correo, rol, estado, usuario_acceso, clave_acceso
+       FROM trabajador
+       WHERE LOWER(COALESCE(correo, '')) = LOWER($1)
+          OR LOWER(COALESCE(usuario_acceso, '')) = LOWER($1)
+       LIMIT 1`,
+      [usuario]
+    );
+
+    if (trabajador.rows.length > 0) {
+      const row = trabajador.rows[0];
+      const claveOk = await passwordCoincide(clave, row.clave_acceso);
+      const rolOk = normalizarRolAcceso(row.rol) === 'administrador';
+      if (claveOk && rolOk && estadoTrabajadorActivo(row.estado)) {
+        return res.json({
+          ok: true,
+          token: `temp-token-${Date.now()}`,
+          message: 'Inicio de sesion exitoso',
+          data: {
+            id_trabajador: row.idtrabajador,
+            usuario: row.usuario_acceso || row.correo,
+            nombre: nombreCompletoTrabajador(row),
+            correo: row.correo,
+            rol: 'Administrador'
+          }
+        });
+      }
+    }
+
+    return res.status(401).json({ ok: false, message: 'Usuario o clave incorrectos' });
   } catch (error) {
     console.error('Error en login admin:', error);
     res.status(500).json({ ok: false, message: error.message });
@@ -383,6 +437,7 @@ async function getProductos(req, res) {
              cantidad_de_platos AS stock,
              activo,
              disponible_llevar,
+             (activo = true AND cantidad_de_platos > 0) AS disponible_local,
              (activo = true AND cantidad_de_platos > 0) AS disponible
       FROM platos
       WHERE activo = true
@@ -398,13 +453,13 @@ async function getProductos(req, res) {
              cantidad_de_bebidas AS stock,
              activo,
              true AS disponible_llevar,
+             (activo = true AND cantidad_de_bebidas > 0) AS disponible_local,
              (activo = true AND cantidad_de_bebidas > 0) AS disponible
       FROM bebidas
       WHERE activo = true
       ORDER BY nombre ASC
     `);
 
-    console.log('Productos enviados desde backend:', result.rows.map(r => r.codigo_producto));
     res.json({ ok: true, data: result.rows });
   } catch (error) {
     console.error('Error obteniendo productos:', error);
@@ -419,11 +474,16 @@ async function createProducto(req, res) {
   const precio = Number(body.precio || 0);
   const descripcion = body.descripcion || null;
   const imagen = body.imagen || null;
-  const disponible = body.disponible !== false && body.en_menu_dia !== false;
-  const stock = disponible ? Math.max(Number(body.stock || 100), 1) : 0;
+  const disponibleLocal = body.disponible_local !== false && body.disponible !== false && body.en_menu_dia !== false;
+  const disponibleLlevar = body.disponible_llevar !== false && body.para_llevar !== false;
+  const stock = disponibleLocal ? Math.max(Number(body.stock || 100), 1) : 0;
 
   if (!nombre || !categoria || precio <= 0) {
     return res.status(400).json({ ok: false, message: 'Nombre, categoria y precio son obligatorios' });
+  }
+
+  if (!disponibleLocal && !disponibleLlevar) {
+    return res.status(400).json({ ok: false, message: 'Selecciona al menos una disponibilidad: local o para llevar' });
   }
 
   try {
@@ -433,33 +493,32 @@ async function createProducto(req, res) {
       const result = await adminPool.query(
         `INSERT INTO bebidas (codigo_bebida, nombre, descripcion, categoria, precio, cantidad_de_bebidas, activo, imagen)
          VALUES ($1, $2, $3, $4, $5, $6, true, $7)
-         RETURNING ('bebida-' || id_bebida::text) AS id_producto,
-                   id_bebida AS id_real,
+         RETURNING id_bebida AS id_real,
                    codigo_bebida AS codigo_producto,
                    'bebida' AS tipo_producto,
                    nombre, categoria, precio, descripcion, imagen, cantidad_de_bebidas AS stock, activo,
                    true AS disponible_llevar,
+                   (activo = true AND cantidad_de_bebidas > 0) AS disponible_local,
                    (activo = true AND cantidad_de_bebidas > 0) AS disponible`,
         [body.codigo_producto || codigoProducto('beb', nombre), nombre, descripcion, categoria, precio, stock, imagen]
       );
-      
+
       const eventEmitter = require('../utils/eventEmitter');
       eventEmitter.emitNuevoProducto(result.rows[0]);
-      
       return res.status(201).json({ ok: true, message: 'Producto creado', data: result.rows[0] });
     }
 
     const result = await adminPool.query(
       `INSERT INTO platos (codigo_plato, nombre, descripcion, categoria, precio, cantidad_de_platos, disponible_llevar, activo, imagen)
        VALUES ($1, $2, $3, $4, $5, $6, $7, true, $8)
-       RETURNING ('plato-' || id_plato::text) AS id_producto,
-                 id_plato AS id_real,
+       RETURNING id_plato AS id_real,
                  codigo_plato AS codigo_producto,
                  'plato' AS tipo_producto,
                  nombre, categoria, precio, descripcion, imagen, cantidad_de_platos AS stock, activo,
                  disponible_llevar,
+                 (activo = true AND cantidad_de_platos > 0) AS disponible_local,
                  (activo = true AND cantidad_de_platos > 0) AS disponible`,
-      [body.codigo_producto || codigoProducto('pla', nombre), nombre, descripcion, categoria, precio, stock, body.para_llevar !== false && body.disponible_llevar !== false, imagen]
+      [body.codigo_producto || codigoProducto('pla', nombre), nombre, descripcion, categoria, precio, stock, disponibleLlevar, imagen]
     );
 
     const eventEmitter = require('../utils/eventEmitter');
@@ -520,10 +579,7 @@ async function deleteProducto(req, res) {
 async function actualizarDisponibilidadProducto(req, res) {
   const valorId = String(req.params.id || '').trim();
   const disponible = req.body?.disponible === true || req.body?.disponible === 'true' || req.body?.disponible === 1;
-  
-  console.log('ID recibido en backend para disponibilidad:', valorId);
-  console.log('Disponible:', disponible);
-  
+
   if (!valorId) {
     return res.status(400).json({ ok: false, message: 'Producto invalido' });
   }
@@ -533,57 +589,75 @@ async function actualizarDisponibilidadProducto(req, res) {
       `SELECT id_plato, codigo_plato FROM platos WHERE codigo_plato = $1 OR codigo_plato LIKE $2`,
       [valorId, `${valorId}%`]
     );
-    
-    console.log('Resultado búsqueda en platos:', plato.rows);
-    
+
     if (plato.rows.length > 0) {
       const sql = disponible
         ? 'cantidad_de_platos = GREATEST(cantidad_de_platos, 1), activo = true'
         : 'cantidad_de_platos = 0, activo = true';
       await adminPool.query(`UPDATE platos SET ${sql} WHERE id_plato = $1`, [plato.rows[0].id_plato]);
-      
-      const productoActualizado = await adminPool.query(
-        `SELECT id_plato, codigo_plato, nombre, cantidad_de_platos, activo FROM platos WHERE id_plato = $1`,
-        [plato.rows[0].id_plato]
-      );
-      
-      if (productoActualizado.rows.length > 0) {
-        const eventEmitter = require('../utils/eventEmitter');
-        eventEmitter.emitProductoActualizado(productoActualizado.rows[0]);
-      }
-      
-      return res.json({ ok: true, message: disponible ? 'Producto activado en carta' : 'Producto retirado de carta' });
+
+      const eventEmitter = require('../utils/eventEmitter');
+      eventEmitter.emitProductoActualizado({ codigo_producto: plato.rows[0].codigo_plato, disponible_local: disponible });
+      return res.json({ ok: true, message: disponible ? 'Producto visible para consumir en local' : 'Producto retirado del consumo en local' });
     }
-    
+
     let bebida = await adminPool.query(
       `SELECT id_bebida, codigo_bebida FROM bebidas WHERE codigo_bebida = $1 OR codigo_bebida LIKE $2`,
       [valorId, `${valorId}%`]
     );
-    
-    console.log('Resultado búsqueda en bebidas:', bebida.rows);
-    
+
     if (bebida.rows.length > 0) {
       const sql = disponible
         ? 'cantidad_de_bebidas = GREATEST(cantidad_de_bebidas, 1), activo = true'
         : 'cantidad_de_bebidas = 0, activo = true';
       await adminPool.query(`UPDATE bebidas SET ${sql} WHERE id_bebida = $1`, [bebida.rows[0].id_bebida]);
-      
-      const productoActualizado = await adminPool.query(
-        `SELECT id_bebida, codigo_bebida, nombre, cantidad_de_bebidas, activo FROM bebidas WHERE id_bebida = $1`,
-        [bebida.rows[0].id_bebida]
-      );
-      
-      if (productoActualizado.rows.length > 0) {
-        const eventEmitter = require('../utils/eventEmitter');
-        eventEmitter.emitProductoActualizado(productoActualizado.rows[0]);
-      }
-      
-      return res.json({ ok: true, message: disponible ? 'Producto activado en carta' : 'Producto retirado de carta' });
+
+      const eventEmitter = require('../utils/eventEmitter');
+      eventEmitter.emitProductoActualizado({ codigo_producto: bebida.rows[0].codigo_bebida, disponible_local: disponible });
+      return res.json({ ok: true, message: disponible ? 'Producto visible para consumir en local' : 'Producto retirado del consumo en local' });
     }
-    
+
     return res.status(404).json({ ok: false, message: 'Producto no encontrado' });
   } catch (error) {
     console.error('Error actualizando disponibilidad:', error);
+    res.status(500).json({ ok: false, message: error.message });
+  }
+}
+
+async function actualizarDisponibleLlevarProducto(req, res) {
+  const valorId = String(req.params.id || '').trim();
+  const disponibleLlevar = req.body?.disponible_llevar === true || req.body?.disponible_llevar === 'true' || req.body?.disponible_llevar === 1;
+
+  if (!valorId) {
+    return res.status(400).json({ ok: false, message: 'Producto invalido' });
+  }
+
+  try {
+    const plato = await adminPool.query(
+      `SELECT id_plato, codigo_plato FROM platos WHERE codigo_plato = $1 OR codigo_plato LIKE $2`,
+      [valorId, `${valorId}%`]
+    );
+
+    if (plato.rows.length > 0) {
+      await adminPool.query('UPDATE platos SET disponible_llevar = $1, activo = true WHERE id_plato = $2', [disponibleLlevar, plato.rows[0].id_plato]);
+      const eventEmitter = require('../utils/eventEmitter');
+      eventEmitter.emitProductoActualizado({ codigo_producto: plato.rows[0].codigo_plato, disponible_llevar: disponibleLlevar });
+      return res.json({ ok: true, message: disponibleLlevar ? 'Producto visible para llevar' : 'Producto retirado de pedidos para llevar' });
+    }
+
+    const bebida = await adminPool.query(
+      `SELECT id_bebida, codigo_bebida FROM bebidas WHERE codigo_bebida = $1 OR codigo_bebida LIKE $2`,
+      [valorId, `${valorId}%`]
+    );
+
+    if (bebida.rows.length > 0) {
+      // Las bebidas no tienen columna disponible_llevar en la estructura base. Se mantienen visibles para llevar si estan activas.
+      return res.json({ ok: true, message: 'Las bebidas se mantienen disponibles para llevar mientras esten activas' });
+    }
+
+    return res.status(404).json({ ok: false, message: 'Producto no encontrado' });
+  } catch (error) {
+    console.error('Error actualizando disponibilidad para llevar:', error);
     res.status(500).json({ ok: false, message: error.message });
   }
 }
@@ -628,10 +702,16 @@ async function getTrabajadores(req, res) {
         telefono,
         correo,
         rol,
-        estado,
+        CASE
+          WHEN LOWER(estado::text) IN ('true', 'activo') THEN 'Activo'
+          WHEN LOWER(estado::text) = 'suspendido' THEN 'Suspendido'
+          ELSE 'Inactivo'
+        END AS estado,
         fechainiciocontrato,
         fechafincontrato,
-        observaciones
+        observaciones,
+        usuario_acceso,
+        clave_acceso IS NOT NULL AS tiene_credencial
       FROM trabajador
       ORDER BY idtrabajador DESC
     `);
@@ -648,24 +728,31 @@ async function getTrabajadores(req, res) {
 }
 
 async function createTrabajador(req, res) {
-  const { nombres, apellidos, documento, telefono, correo, rol, estado, fecha_inicio_contrato, fecha_fin_contrato, observaciones } = req.body;
-  
+  const { nombres, apellidos, documento, telefono, correo, rol, estado, fecha_inicio_contrato, fecha_fin_contrato, observaciones, usuario_acceso, clave_acceso, password } = req.body;
+
   let estadoFinal = 'Inactivo';
   if (estado === 'Activo' || estado === true || estado === 'true' || estado === 1 || estado === '1') {
     estadoFinal = 'Activo';
   } else if (estado === 'Suspendido') {
     estadoFinal = 'Suspendido';
-  } else {
-    estadoFinal = 'Inactivo';
   }
-  
+
+  const correoFinal = String(correo || '').trim();
+  const clavePlano = String(clave_acceso || password || '').trim();
+  const usuarioFinal = String(usuario_acceso || correoFinal || '').trim();
+
+  if (!correoFinal || !clavePlano) {
+    return res.status(400).json({ ok: false, message: 'Correo y contrasena de acceso son obligatorios para crear credenciales.' });
+  }
+
   try {
+    const claveHash = await bcrypt.hash(clavePlano, 10);
     const result = await adminPool.query(
-      `INSERT INTO trabajador (nombres, apellidos, documento, telefono, correo, rol, estado, fechainiciocontrato, fechafincontrato, observaciones) 
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING idtrabajador`,
-      [nombres, apellidos, documento, telefono, correo || null, rol, estadoFinal, fecha_inicio_contrato, fecha_fin_contrato || null, observaciones || null]
+      `INSERT INTO trabajador (nombres, apellidos, documento, telefono, correo, rol, estado, fechainiciocontrato, fechafincontrato, observaciones, usuario_acceso, clave_acceso)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING idtrabajador`,
+      [nombres, apellidos, documento, telefono, correoFinal, rol, estadoFinal, fecha_inicio_contrato, fecha_fin_contrato || null, observaciones || null, usuarioFinal, claveHash]
     );
-    res.status(201).json({ ok: true, message: 'Trabajador creado', data: { idtrabajador: result.rows[0].idtrabajador } });
+    res.status(201).json({ ok: true, message: 'Trabajador creado con credenciales de acceso', data: { idtrabajador: result.rows[0].idtrabajador } });
   } catch (error) {
     console.error('Error creando trabajador:', error);
     res.status(500).json({ ok: false, message: error.message });
@@ -674,33 +761,57 @@ async function createTrabajador(req, res) {
 
 async function updateTrabajador(req, res) {
   const { id } = req.params;
-  const { nombres, apellidos, documento, telefono, correo, rol, estado, fecha_inicio_contrato, fecha_fin_contrato, observaciones } = req.body;
-  
+  const { nombres, apellidos, documento, telefono, correo, rol, estado, fecha_inicio_contrato, fecha_fin_contrato, observaciones, usuario_acceso, clave_acceso, password } = req.body;
+
   let estadoFinal = 'Inactivo';
   if (estado === 'Activo' || estado === true || estado === 'true' || estado === 1 || estado === '1') {
     estadoFinal = 'Activo';
   } else if (estado === 'Suspendido') {
     estadoFinal = 'Suspendido';
-  } else {
-    estadoFinal = 'Inactivo';
   }
-  
+
+  const correoFinal = String(correo || '').trim();
+  const usuarioFinal = String(usuario_acceso || correoFinal || '').trim();
+  const clavePlano = String(clave_acceso || password || '').trim();
+
   try {
-    await adminPool.query(
-      `UPDATE trabajador SET 
-        nombres = $1, 
-        apellidos = $2, 
-        documento = $3, 
-        telefono = $4, 
-        correo = $5, 
-        rol = $6, 
-        estado = $7, 
-        fechainiciocontrato = $8, 
-        fechafincontrato = $9, 
-        observaciones = $10
-       WHERE idtrabajador = $11`,
-      [nombres, apellidos, documento, telefono, correo, rol, estadoFinal, fecha_inicio_contrato, fecha_fin_contrato || null, observaciones || null, id]
-    );
+    if (clavePlano) {
+      const claveHash = await bcrypt.hash(clavePlano, 10);
+      await adminPool.query(
+        `UPDATE trabajador SET
+          nombres = $1,
+          apellidos = $2,
+          documento = $3,
+          telefono = $4,
+          correo = $5,
+          rol = $6,
+          estado = $7,
+          fechainiciocontrato = $8,
+          fechafincontrato = $9,
+          observaciones = $10,
+          usuario_acceso = $11,
+          clave_acceso = $12
+         WHERE idtrabajador = $13`,
+        [nombres, apellidos, documento, telefono, correoFinal, rol, estadoFinal, fecha_inicio_contrato, fecha_fin_contrato || null, observaciones || null, usuarioFinal, claveHash, id]
+      );
+    } else {
+      await adminPool.query(
+        `UPDATE trabajador SET
+          nombres = $1,
+          apellidos = $2,
+          documento = $3,
+          telefono = $4,
+          correo = $5,
+          rol = $6,
+          estado = $7,
+          fechainiciocontrato = $8,
+          fechafincontrato = $9,
+          observaciones = $10,
+          usuario_acceso = $11
+         WHERE idtrabajador = $12`,
+        [nombres, apellidos, documento, telefono, correoFinal, rol, estadoFinal, fecha_inicio_contrato, fecha_fin_contrato || null, observaciones || null, usuarioFinal, id]
+      );
+    }
     res.json({ ok: true, message: 'Trabajador actualizado' });
   } catch (error) {
     console.error('Error actualizando trabajador:', error);
@@ -721,7 +832,13 @@ async function deleteTrabajador(req, res) {
 
 async function getReporteTrabajadores(req, res) {
   const { estado, fecha_desde, fecha_hasta } = req.query;
-  let query = `SELECT idtrabajador, nombres, apellidos, documento, rol, estado, fechainiciocontrato, fechafincontrato FROM trabajador WHERE 1=1`;
+  let query = `SELECT idtrabajador, nombres, apellidos, documento, rol,
+      CASE
+        WHEN LOWER(estado::text) IN ('true', 'activo') THEN 'Activo'
+        WHEN LOWER(estado::text) = 'suspendido' THEN 'Suspendido'
+        ELSE 'Inactivo'
+      END AS estado,
+      fechainiciocontrato, fechafincontrato FROM trabajador WHERE 1=1`;
   const params = [];
   let idx = 1;
 
@@ -765,10 +882,16 @@ async function getTrabajadorById(req, res) {
         telefono,
         correo,
         rol,
-        estado,
+        CASE
+          WHEN LOWER(estado::text) IN ('true', 'activo') THEN 'Activo'
+          WHEN LOWER(estado::text) = 'suspendido' THEN 'Suspendido'
+          ELSE 'Inactivo'
+        END AS estado,
         fechainiciocontrato,
         fechafincontrato,
-        observaciones
+        observaciones,
+        usuario_acceso,
+        clave_acceso IS NOT NULL AS tiene_credencial
       FROM trabajador
       WHERE idtrabajador = $1
     `, [id]);
@@ -788,6 +911,57 @@ async function getTrabajadorById(req, res) {
   }
 }
 
+async function loginPersonal(req, res) {
+  const { usuario, clave, rol } = req.body || {};
+  const rolSolicitado = normalizarRolAcceso(rol);
+
+  if (!usuario || !clave) {
+    return res.status(400).json({ ok: false, message: 'Correo y contrasena son requeridos' });
+  }
+
+  try {
+    const result = await adminPool.query(
+      `SELECT idtrabajador, nombres, apellidos, correo, rol, estado, usuario_acceso, clave_acceso
+       FROM trabajador
+       WHERE LOWER(COALESCE(correo, '')) = LOWER($1)
+          OR LOWER(COALESCE(usuario_acceso, '')) = LOWER($1)
+       LIMIT 1`,
+      [usuario]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ ok: false, message: 'Correo o contrasena incorrectos' });
+    }
+
+    const trabajador = result.rows[0];
+    const rolTrabajador = normalizarRolAcceso(trabajador.rol);
+    const claveOk = await passwordCoincide(clave, trabajador.clave_acceso);
+
+    if (!claveOk || !estadoTrabajadorActivo(trabajador.estado)) {
+      return res.status(401).json({ ok: false, message: 'Correo o contrasena incorrectos' });
+    }
+
+    if (rolSolicitado && rolTrabajador !== rolSolicitado) {
+      return res.status(403).json({ ok: false, message: `Esta cuenta pertenece al rol ${trabajador.rol}, no al rol solicitado.` });
+    }
+
+    res.json({
+      ok: true,
+      token: `personal-token-${Date.now()}`,
+      data: {
+        id_trabajador: trabajador.idtrabajador,
+        nombre: nombreCompletoTrabajador(trabajador),
+        email: trabajador.correo || trabajador.usuario_acceso,
+        rol: rolTrabajador === 'cocina' ? 'Cocina' : rolTrabajador === 'mesero' ? 'Mesero' : 'Administrador',
+        inicio: inicioPorRol(rolTrabajador)
+      }
+    });
+  } catch (error) {
+    console.error('Error en login personal:', error);
+    res.status(500).json({ ok: false, message: error.message });
+  }
+}
+
 module.exports = {
   health,
   login,
@@ -799,6 +973,7 @@ module.exports = {
   createProducto,
   deleteProducto,
   actualizarDisponibilidadProducto,
+  actualizarDisponibleLlevarProducto,
   getMenuDia,
   addToMenuDia,
   removeFromMenuDia,
@@ -807,5 +982,6 @@ module.exports = {
   createTrabajador,
   updateTrabajador,
   deleteTrabajador,
-  getReporteTrabajadores
+  getReporteTrabajadores,
+  loginPersonal
 };

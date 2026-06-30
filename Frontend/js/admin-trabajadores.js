@@ -125,7 +125,8 @@ function pintarTrabajadoresAdmin() {
               ${alerta}
             </div>
             <p class="mt-1 text-sm font-semibold text-slate-500">Documento: ${escapeHtmlTrabajadorAdmin(trabajador.documento)} | Teléfono: ${escapeHtmlTrabajadorAdmin(trabajador.telefono || "No registrado")}</p>
-            <p class="mt-1 text-sm font-semibold text-slate-500">Correo: ${escapeHtmlTrabajadorAdmin(trabajador.correo || "No registrado")}</p>
+            <p class="mt-1 text-sm font-semibold text-slate-500">Correo de acceso: ${escapeHtmlTrabajadorAdmin(trabajador.correo || "No registrado")}</p>
+            <p class="mt-1 text-xs font-black ${trabajador.tiene_credencial ? 'text-emerald-700' : 'text-red-600'}">${trabajador.tiene_credencial ? 'Credencial creada' : 'Sin credencial de acceso'}</p>
             <p class="mt-1 text-sm font-semibold text-slate-500">Contrato: ${formatearFechaTrabajadorAdmin(trabajador.fechaInicio)} - ${formatearFechaTrabajadorAdmin(trabajador.fechaFin)}</p>
             ${trabajador.observaciones ? `<p class="mt-2 text-sm text-slate-600">${escapeHtmlTrabajadorAdmin(trabajador.observaciones)}</p>` : ""}
           </div>
@@ -155,6 +156,7 @@ function leerFormularioTrabajadorAdmin() {
     documento: limpiarSoloNumerosAdmin(document.getElementById("trabajador-documento")?.value, 12),
     telefono: limpiarSoloNumerosAdmin(document.getElementById("trabajador-telefono")?.value, 9),
     correo: document.getElementById("trabajador-correo")?.value.trim() || "",
+    password: document.getElementById("trabajador-password")?.value || "",
     rol: document.getElementById("trabajador-rol")?.value || "Mesero",
     estado: estadoSeleccionado,
     fechaInicio: document.getElementById("trabajador-fecha-inicio")?.value || "",
@@ -167,6 +169,19 @@ function leerFormularioTrabajadorAdmin() {
 function validarTrabajadorAdmin(trabajador) {
   if (!trabajador.nombres || !trabajador.apellidos || !trabajador.documento || !trabajador.fechaInicio) {
     throw new Error("Completa nombres, apellidos, documento e inicio de contrato.");
+  }
+
+  if (!trabajador.correo) {
+    throw new Error("El correo de acceso es obligatorio.");
+  }
+
+  const esEdicion = Boolean(document.getElementById("trabajador-id")?.value);
+  if (!esEdicion && !trabajador.password) {
+    throw new Error("La contraseña de acceso es obligatoria para un trabajador nuevo.");
+  }
+
+  if (trabajador.password && trabajador.password.length < 6) {
+    throw new Error("La contraseña debe tener al menos 6 caracteres.");
   }
 
   if (trabajador.documento.length < 8) {
@@ -217,6 +232,8 @@ console.log('Estado a enviar a BD:', estadoEnviar);
         documento: trabajador.documento,
         telefono: trabajador.telefono,
         correo: trabajador.correo || null,
+        usuario_acceso: trabajador.correo || null,
+        clave_acceso: trabajador.password || "",
         rol: trabajador.rol,
         estado: estadoEnviar,
         fecha_inicio_contrato: trabajador.fechaInicio,
@@ -255,6 +272,11 @@ function limpiarFormularioTrabajadorAdmin() {
   if (titulo) titulo.textContent = "Registrar trabajador";
   if (estado) estado.value = "Activo";
   if (rol) rol.value = "Mesero";
+  const password = document.getElementById("trabajador-password");
+  if (password) {
+    password.value = "";
+    password.required = true;
+  }
 }
 
 async function editarTrabajadorAdmin(id) {
@@ -274,6 +296,11 @@ async function editarTrabajadorAdmin(id) {
     document.getElementById("trabajador-documento").value = trabajador.documento || "";
     document.getElementById("trabajador-telefono").value = trabajador.telefono || "";
     document.getElementById("trabajador-correo").value = trabajador.correo || "";
+    const passwordInput = document.getElementById("trabajador-password");
+    if (passwordInput) {
+      passwordInput.value = "";
+      passwordInput.required = false;
+    }
     document.getElementById("trabajador-rol").value = trabajador.rol || "Mesero";
     
     const estadoValue = trabajador.estado === 'Activo' ? 'Activo' : (trabajador.estado === 'Suspendido' ? 'Suspendido' : 'Inactivo');

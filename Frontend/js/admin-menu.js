@@ -95,7 +95,8 @@ function normalizarProductoMenuAdmin(producto) {
     variantes,
     opciones,
     imagen: producto.imagen || IMAGEN_PLATO_PLACEHOLDER,
-    disponible: producto.disponible !== undefined ? Boolean(producto.disponible) : producto.stock === undefined || Number(producto.stock) > 0,
+    disponible: producto.disponible_local !== undefined ? Boolean(producto.disponible_local) : (producto.disponible !== undefined ? Boolean(producto.disponible) : producto.stock === undefined || Number(producto.stock) > 0),
+    disponibleLocal: producto.disponible_local !== undefined ? Boolean(producto.disponible_local) : (producto.disponible !== undefined ? Boolean(producto.disponible) : producto.stock === undefined || Number(producto.stock) > 0),
     paraLlevar: producto.paraLlevar !== undefined ? Boolean(producto.paraLlevar) : producto.disponible_llevar !== false,
     esBackendAdmin: Boolean(producto.esBackendAdmin),
   };
@@ -142,7 +143,7 @@ function actualizarEstadisticasMenuAdmin() {
   const menuDia = leerMenuDiaAdmin();
   const nuevos = usandoBackendMenuAdmin ? productos.filter((producto) => producto.esNuevoAdmin).length : leerProductosNuevosAdmin().length;
   const totalMenuDia = usandoBackendMenuAdmin
-    ? productos.filter((producto) => producto.disponible).length
+    ? productos.filter((producto) => producto.disponibleLocal !== false && producto.disponible !== false).length
     : (menuDiaAdminConfigurado() ? menuDia.length : productos.length);
 
   const statActivos = document.getElementById("stat-productos-activos");
@@ -214,7 +215,11 @@ function pintarProductosAdmin() {
           <div class="flex flex-col gap-2 sm:flex-row md:items-center">
             <label class="flex cursor-pointer items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-700 ring-1 ring-slate-200">
               <input type="checkbox" class="h-4 w-4 accent-orange-500" ${enMenuDia ? "checked" : ""} onchange="alternarProductoMenuDiaAdmin('${escapeHtmlMenuAdmin(idParaCheckbox)}', this.checked)" />
-              Menú del día
+              Para local
+            </label>
+            <label class="flex cursor-pointer items-center gap-2 rounded-2xl bg-white px-4 py-3 text-sm font-black text-slate-700 ring-1 ring-slate-200">
+              <input type="checkbox" class="h-4 w-4 accent-emerald-500" ${producto.paraLlevar ? "checked" : ""} onchange="alternarProductoLlevarAdmin('${escapeHtmlMenuAdmin(idParaCheckbox)}', this.checked)" />
+              Para llevar
             </label>
             <button type="button" onclick="eliminarProductoAdmin('${escapeHtmlMenuAdmin(idParaCheckbox)}')" class="rounded-2xl bg-red-500 px-4 py-3 text-sm font-black text-white hover:bg-red-600">
               Eliminar
@@ -425,7 +430,9 @@ async function cargarYPintarProductosAdmin() {
         id: idReal,
         codigo_producto: idReal,
         esBackendAdmin: true,
-        disponible: producto.activo === true && producto.stock > 0,
+        disponible: producto.disponible_local !== undefined ? Boolean(producto.disponible_local) : (producto.activo === true && producto.stock > 0),
+        disponibleLocal: producto.disponible_local !== undefined ? Boolean(producto.disponible_local) : (producto.activo === true && producto.stock > 0),
+        paraLlevar: producto.disponible_llevar !== false,
         esNuevoAdmin: false
       });
     });
@@ -448,6 +455,7 @@ async function guardarProductoEnBackend(producto, agregarMenuDia) {
         imagen: producto.imagen,
         para_llevar: producto.paraLlevar,
         disponible_llevar: producto.paraLlevar,
+        disponible_local: agregarMenuDia,
         disponible: agregarMenuDia,
         en_menu_dia: agregarMenuDia,
         codigo_producto: producto.id 
@@ -472,6 +480,34 @@ async function actualizarDisponibilidadProductoBackend(id, disponible) {
     method: "PATCH",
     body: JSON.stringify({ disponible }),
   });
+}
+
+async function actualizarLlevarProductoBackend(id, disponibleLlevar) {
+  await apiJson(`/admin/productos/${encodeURIComponent(id)}/disponible-llevar`, {
+    method: "PATCH",
+    body: JSON.stringify({ disponible_llevar: disponibleLlevar }),
+  });
+}
+
+async function alternarProductoLlevarAdmin(id, activo) {
+  const producto = obtenerProductoAdminPorId(id);
+
+  if (usandoBackendMenuAdmin && producto?.esBackendAdmin) {
+    try {
+      const idParaEnviar = producto.codigo_producto || producto.id;
+      await actualizarLlevarProductoBackend(idParaEnviar, activo);
+      await cargarYPintarProductosAdmin();
+      document.dispatchEvent(new CustomEvent('producto:actualizado', { detail: { id, disponible_llevar: activo } }));
+    } catch (error) {
+      alert(`No se pudo actualizar la disponibilidad para llevar: ${error.message}`);
+      await cargarYPintarProductosAdmin();
+    }
+    return;
+  }
+
+  const nuevos = leerProductosNuevosAdmin().map((item) => String(item.id) === String(id) ? { ...item, paraLlevar: activo } : item);
+  guardarProductosNuevosAdmin(nuevos);
+  pintarProductosAdmin();
 }
 
 async function eliminarProductoBackend(id) {
