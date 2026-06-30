@@ -223,7 +223,7 @@ function abrirGestionCuenta(idCuenta) {
         <input id="documento-pago" value="" maxlength="11" class="mt-1 w-full rounded-xl border px-3 py-2" placeholder="Ingrese documento">
         <p id="error-documento-gestion" class="mt-1 hidden text-xs font-bold text-red-600">El documento debe tener 8 dígitos para boleta o 11 dígitos para factura</p>
       </label>
-      <button class="mt-5 w-full rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white">Guardar pago en BD</button>
+      <button class="mt-5 w-full rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white">Guardar pago</button>
     </form>
   </div>`;
 
