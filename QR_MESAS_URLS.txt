@@ -1,20 +1,43 @@
-Mesa 1: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=1&token=MG-MESA-01-9F5BA8CB417B
-Mesa 2: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=2&token=MG-MESA-02-0100EC9A8B92
-Mesa 3: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=3&token=MG-MESA-03-FAD9C7239E19
-Mesa 4: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=4&token=MG-MESA-04-4FF3BD8CBD46
-Mesa 5: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=5&token=MG-MESA-05-19396C7477A2
-Mesa 6: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=6&token=MG-MESA-06-CE1179310294
-Mesa 7: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=7&token=MG-MESA-07-48CA32AFC95C
-Mesa 8: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=8&token=MG-MESA-08-003CA8181D85
-Mesa 9: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=9&token=MG-MESA-09-60D3D79BC3E9
-Mesa 10: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=10&token=MG-MESA-10-E28DAF61E082
-Mesa 11: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=11&token=MG-MESA-11-6DA0FC111284
-Mesa 12: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=12&token=MG-MESA-12-8B3BA8F5625F
-Mesa 13: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=13&token=MG-MESA-13-3C2665B08E88
-Mesa 14: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=14&token=MG-MESA-14-25B95C55045C
-Mesa 15: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=15&token=MG-MESA-15-36DD577A341D
-Mesa 16: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=16&token=MG-MESA-16-68FE869CC56D
-Mesa 17: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=17&token=MG-MESA-17-36B57B875BC2
-Mesa 18: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=18&token=MG-MESA-18-3AE152EB5978
-Mesa 19: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=19&token=MG-MESA-19-C26D169D63B8
-Mesa 20: https://TU-FRONTEND.vercel.app/Cliente/index.html?mesa=20&token=MG-MESA-20-E705F39DB6B9
+Mesero: https://menu-go-github-io.vercel.app/Mesero/login.html
+Admin: https://menu-go-github-io.vercel.app/Admin/login.html
+Cocina: https://menu-go-github-io.vercel.app/Cocina/login.html
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=1&token=MG-MESA-01-9F5BA8CB417B
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=2&token=MG-MESA-02-0100EC9A8B92
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=3&token=MG-MESA-03-FAD9C7239E19
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=4&token=MG-MESA-04-4FF3BD8CBD46
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=5&token=MG-MESA-05-19396C7477A2
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=6&token=MG-MESA-06-CE1179310294
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=7&token=MG-MESA-07-48CA32AFC95C
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=8&token=MG-MESA-08-003CA8181D85
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=9&token=MG-MESA-09-60D3D79BC3E9
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=10&token=MG-MESA-10-E28DAF61E082
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=11&token=MG-MESA-11-6DA0FC111284
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=12&token=MG-MESA-12-8B3BA8F5625F
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=13&token=MG-MESA-13-3C2665B08E88
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=14&token=MG-MESA-14-25B95C55045C
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=15&token=MG-MESA-15-36DD577A341D
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=16&token=MG-MESA-16-68FE869CC56D
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=17&token=MG-MESA-17-36B57B875BC2
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=18&token=MG-MESA-18-3AE152EB5978
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=19&token=MG-MESA-19-C26D169D63B8
+
+https://menu-go-github-io.vercel.app/Cliente/index.html?mesa=20&token=MG-MESA-20-E705F39DB6B9
