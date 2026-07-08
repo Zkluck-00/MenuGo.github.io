@@ -153,7 +153,7 @@ function leerFormularioTrabajadorAdmin() {
     id: document.getElementById("trabajador-id")?.value || `TRAB-${Date.now()}`,
     nombres: document.getElementById("trabajador-nombres")?.value.trim() || "",
     apellidos: document.getElementById("trabajador-apellidos")?.value.trim() || "",
-    documento: limpiarSoloNumerosAdmin(document.getElementById("trabajador-documento")?.value, 12),
+    documento: limpiarSoloNumerosAdmin(document.getElementById("trabajador-documento")?.value, 8),
     telefono: limpiarSoloNumerosAdmin(document.getElementById("trabajador-telefono")?.value, 9),
     correo: document.getElementById("trabajador-correo")?.value.trim() || "",
     password: document.getElementById("trabajador-password")?.value || "",
