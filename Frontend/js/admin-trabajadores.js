@@ -184,12 +184,12 @@ function validarTrabajadorAdmin(trabajador) {
     throw new Error("La contraseña debe tener al menos 6 caracteres.");
   }
 
-  if (trabajador.documento.length < 8) {
-    throw new Error("El documento debe tener al menos 8 números.");
+  if (trabajador.documento.length !== 8) {
+    throw new Error("El documento debe tener exactamente 8 números.");
   }
 
   if (trabajador.telefono && trabajador.telefono.length !== 9) {
-    throw new Error("El teléfono debe tener 9 números.");
+    throw new Error("El teléfono debe tener exactamente  9 números.");
   }
 
   if (trabajador.fechaFin && trabajador.fechaFin < trabajador.fechaInicio) {
