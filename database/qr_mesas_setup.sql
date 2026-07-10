@@ -1,5 +1,3 @@
--- MenuGo - configuracion de QR por mesa
--- Ejecuta este archivo en PostgreSQL si quieres preparar manualmente los QR de las mesas.
 
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS qr_token VARCHAR(120);
 ALTER TABLE mesas ADD COLUMN IF NOT EXISTS qr_activo BOOLEAN DEFAULT TRUE;

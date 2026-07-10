@@ -1,5 +1,6 @@
 const { adminPool } = require("../config/db");
 const bcrypt = require('bcryptjs');
+const eventEmitter = require('../utils/eventEmitter');
 
 function toNumber(value) {
   return Number(value || 0);
@@ -89,6 +90,112 @@ function parseProductoId(id) {
   
   return { tipo: null, id: null, codigo: valor };
 }
+async function buscarProductoAdmin(valorId) {
+  const valor = String(valorId || "").trim();
+
+  if (!valor) return null;
+
+  const parsed = parseProductoId(valor);
+
+  if (parsed.tipo === "plato" && parsed.id) {
+    const { rows } = await adminPool.query(
+      `SELECT id_plato AS id_real,
+              codigo_plato AS codigo_producto,
+              'plato' AS tipo_producto
+       FROM platos
+       WHERE id_plato = $1
+       LIMIT 1`,
+      [parsed.id]
+    );
+
+    if (rows.length > 0) return rows[0];
+  }
+
+  if (parsed.tipo === "bebida" && parsed.id) {
+    const { rows } = await adminPool.query(
+      `SELECT id_bebida AS id_real,
+              codigo_bebida AS codigo_producto,
+              'bebida' AS tipo_producto
+       FROM bebidas
+       WHERE id_bebida = $1
+       LIMIT 1`,
+      [parsed.id]
+    );
+
+    if (rows.length > 0) return rows[0];
+  }
+
+  if (/^\d+$/.test(valor)) {
+    const plato = await adminPool.query(
+      `SELECT id_plato AS id_real,
+              codigo_plato AS codigo_producto,
+              'plato' AS tipo_producto
+       FROM platos
+       WHERE id_plato = $1
+       LIMIT 1`,
+      [Number(valor)]
+    );
+
+    if (plato.rows.length > 0) return plato.rows[0];
+
+    const bebida = await adminPool.query(
+      `SELECT id_bebida AS id_real,
+              codigo_bebida AS codigo_producto,
+              'bebida' AS tipo_producto
+       FROM bebidas
+       WHERE id_bebida = $1
+       LIMIT 1`,
+      [Number(valor)]
+    );
+
+    if (bebida.rows.length > 0) return bebida.rows[0];
+  }
+
+  const platoPorCodigo = await adminPool.query(
+    `SELECT id_plato AS id_real,
+            codigo_plato AS codigo_producto,
+            'plato' AS tipo_producto
+     FROM platos
+     WHERE codigo_plato = $1
+        OR codigo_plato LIKE $2
+     LIMIT 1`,
+    [valor, `${valor}%`]
+  );
+
+  if (platoPorCodigo.rows.length > 0) return platoPorCodigo.rows[0];
+
+  const bebidaPorCodigo = await adminPool.query(
+    `SELECT id_bebida AS id_real,
+            codigo_bebida AS codigo_producto,
+            'bebida' AS tipo_producto
+     FROM bebidas
+     WHERE codigo_bebida = $1
+        OR codigo_bebida LIKE $2
+     LIMIT 1`,
+    [valor, `${valor}%`]
+  );
+
+  if (bebidaPorCodigo.rows.length > 0) return bebidaPorCodigo.rows[0];
+
+  return null;
+}
+
+function emitirProductoActualizado(producto) {
+  if (typeof eventEmitter.emitProductoActualizado === "function") {
+    eventEmitter.emitProductoActualizado(producto);
+  } else {
+    eventEmitter.emit("producto:actualizado", producto);
+  }
+}
+
+function emitirProductoEliminado(producto) {
+  if (typeof eventEmitter.emitProductoEliminado === "function") {
+    eventEmitter.emitProductoEliminado(producto);
+  } else {
+    eventEmitter.emit("producto:eliminado", producto);
+  }
+}
+
 
 async function passwordCoincide(claveIngresada, claveGuardada) {
   if (!claveGuardada) return false;
@@ -425,6 +532,13 @@ async function getPlatosMasVendidos(req, res) {
 
 async function getProductos(req, res) {
   try {
+    res.set({
+      "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
+      "Surrogate-Control": "no-store",
+    });
+
     const result = await adminPool.query(`
       SELECT id_plato AS id_real,
              codigo_plato AS codigo_producto,
@@ -440,8 +554,9 @@ async function getProductos(req, res) {
              (activo = true AND cantidad_de_platos > 0) AS disponible_local,
              (activo = true AND cantidad_de_platos > 0) AS disponible
       FROM platos
-      WHERE activo = true
+
       UNION ALL
+
       SELECT id_bebida AS id_real,
              codigo_bebida AS codigo_producto,
              'bebida' AS tipo_producto,
@@ -456,13 +571,13 @@ async function getProductos(req, res) {
              (activo = true AND cantidad_de_bebidas > 0) AS disponible_local,
              (activo = true AND cantidad_de_bebidas > 0) AS disponible
       FROM bebidas
-      WHERE activo = true
+
       ORDER BY nombre ASC
     `);
 
     res.json({ ok: true, data: result.rows });
   } catch (error) {
-    console.error('Error obteniendo productos:', error);
+    console.error("Error obteniendo productos:", error);
     res.status(500).json({ ok: false, message: error.message });
   }
 }
@@ -577,87 +692,187 @@ async function deleteProducto(req, res) {
 }
 
 async function actualizarDisponibilidadProducto(req, res) {
-  const valorId = String(req.params.id || '').trim();
-  const disponible = req.body?.disponible === true || req.body?.disponible === 'true' || req.body?.disponible === 1;
+  const valorId = String(req.params.id || "").trim();
+  const disponible =
+    req.body?.disponible === true ||
+    req.body?.disponible === "true" ||
+    req.body?.disponible === 1 ||
+    req.body?.disponible === "1";
 
   if (!valorId) {
-    return res.status(400).json({ ok: false, message: 'Producto invalido' });
+    return res.status(400).json({
+      ok: false,
+      message: "Producto inválido",
+    });
   }
 
   try {
-    let plato = await adminPool.query(
-      `SELECT id_plato, codigo_plato FROM platos WHERE codigo_plato = $1 OR codigo_plato LIKE $2`,
-      [valorId, `${valorId}%`]
-    );
+    const producto = await buscarProductoAdmin(valorId);
 
-    if (plato.rows.length > 0) {
-      const sql = disponible
-        ? 'cantidad_de_platos = GREATEST(cantidad_de_platos, 1), activo = true'
-        : 'cantidad_de_platos = 0, activo = true';
-      await adminPool.query(`UPDATE platos SET ${sql} WHERE id_plato = $1`, [plato.rows[0].id_plato]);
-
-      const eventEmitter = require('../utils/eventEmitter');
-      eventEmitter.emitProductoActualizado({ codigo_producto: plato.rows[0].codigo_plato, disponible_local: disponible });
-      return res.json({ ok: true, message: disponible ? 'Producto visible para consumir en local' : 'Producto retirado del consumo en local' });
+    if (!producto) {
+      return res.status(404).json({
+        ok: false,
+        message: "Producto no encontrado",
+      });
     }
 
-    let bebida = await adminPool.query(
-      `SELECT id_bebida, codigo_bebida FROM bebidas WHERE codigo_bebida = $1 OR codigo_bebida LIKE $2`,
-      [valorId, `${valorId}%`]
-    );
+    if (producto.tipo_producto === "plato") {
+      const { rows } = await adminPool.query(
+        `UPDATE platos
+         SET cantidad_de_platos = CASE
+              WHEN $1 = true THEN GREATEST(cantidad_de_platos, 1)
+              ELSE 0
+             END,
+             activo = true
+         WHERE id_plato = $2
+         RETURNING id_plato AS id_real,
+                   codigo_plato AS codigo_producto,
+                   'plato' AS tipo_producto,
+                   nombre,
+                   categoria,
+                   precio,
+                   descripcion,
+                   imagen,
+                   cantidad_de_platos AS stock,
+                   activo,
+                   disponible_llevar,
+                   (activo = true AND cantidad_de_platos > 0) AS disponible_local,
+                   (activo = true AND cantidad_de_platos > 0) AS disponible`,
+        [disponible, producto.id_real]
+      );
 
-    if (bebida.rows.length > 0) {
-      const sql = disponible
-        ? 'cantidad_de_bebidas = GREATEST(cantidad_de_bebidas, 1), activo = true'
-        : 'cantidad_de_bebidas = 0, activo = true';
-      await adminPool.query(`UPDATE bebidas SET ${sql} WHERE id_bebida = $1`, [bebida.rows[0].id_bebida]);
+      emitirProductoActualizado(rows[0]);
 
-      const eventEmitter = require('../utils/eventEmitter');
-      eventEmitter.emitProductoActualizado({ codigo_producto: bebida.rows[0].codigo_bebida, disponible_local: disponible });
-      return res.json({ ok: true, message: disponible ? 'Producto visible para consumir en local' : 'Producto retirado del consumo en local' });
+      return res.json({
+        ok: true,
+        message: disponible
+          ? "Producto visible para consumir en local"
+          : "Producto retirado del consumo en local",
+        data: rows[0],
+      });
     }
 
-    return res.status(404).json({ ok: false, message: 'Producto no encontrado' });
+    if (producto.tipo_producto === "bebida") {
+      const { rows } = await adminPool.query(
+        `UPDATE bebidas
+         SET cantidad_de_bebidas = CASE
+              WHEN $1 = true THEN GREATEST(cantidad_de_bebidas, 1)
+              ELSE 0
+             END,
+             activo = true
+         WHERE id_bebida = $2
+         RETURNING id_bebida AS id_real,
+                   codigo_bebida AS codigo_producto,
+                   'bebida' AS tipo_producto,
+                   nombre,
+                   categoria,
+                   precio,
+                   descripcion,
+                   imagen,
+                   cantidad_de_bebidas AS stock,
+                   activo,
+                   true AS disponible_llevar,
+                   (activo = true AND cantidad_de_bebidas > 0) AS disponible_local,
+                   (activo = true AND cantidad_de_bebidas > 0) AS disponible`,
+        [disponible, producto.id_real]
+      );
+
+      emitirProductoActualizado(rows[0]);
+
+      return res.json({
+        ok: true,
+        message: disponible
+          ? "Producto visible para consumir en local"
+          : "Producto retirado del consumo en local",
+        data: rows[0],
+      });
+    }
+
+    return res.status(400).json({
+      ok: false,
+      message: "Tipo de producto no válido",
+    });
   } catch (error) {
-    console.error('Error actualizando disponibilidad:', error);
+    console.error("Error actualizando disponibilidad:", error);
     res.status(500).json({ ok: false, message: error.message });
   }
 }
 
 async function actualizarDisponibleLlevarProducto(req, res) {
-  const valorId = String(req.params.id || '').trim();
-  const disponibleLlevar = req.body?.disponible_llevar === true || req.body?.disponible_llevar === 'true' || req.body?.disponible_llevar === 1;
+  const valorId = String(req.params.id || "").trim();
+  const disponibleLlevar =
+    req.body?.disponible_llevar === true ||
+    req.body?.disponible_llevar === "true" ||
+    req.body?.disponible_llevar === 1 ||
+    req.body?.disponible_llevar === "1";
 
   if (!valorId) {
-    return res.status(400).json({ ok: false, message: 'Producto invalido' });
+    return res.status(400).json({
+      ok: false,
+      message: "Producto inválido",
+    });
   }
 
   try {
-    const plato = await adminPool.query(
-      `SELECT id_plato, codigo_plato FROM platos WHERE codigo_plato = $1 OR codigo_plato LIKE $2`,
-      [valorId, `${valorId}%`]
-    );
+    const producto = await buscarProductoAdmin(valorId);
 
-    if (plato.rows.length > 0) {
-      await adminPool.query('UPDATE platos SET disponible_llevar = $1, activo = true WHERE id_plato = $2', [disponibleLlevar, plato.rows[0].id_plato]);
-      const eventEmitter = require('../utils/eventEmitter');
-      eventEmitter.emitProductoActualizado({ codigo_producto: plato.rows[0].codigo_plato, disponible_llevar: disponibleLlevar });
-      return res.json({ ok: true, message: disponibleLlevar ? 'Producto visible para llevar' : 'Producto retirado de pedidos para llevar' });
+    if (!producto) {
+      return res.status(404).json({
+        ok: false,
+        message: "Producto no encontrado",
+      });
     }
 
-    const bebida = await adminPool.query(
-      `SELECT id_bebida, codigo_bebida FROM bebidas WHERE codigo_bebida = $1 OR codigo_bebida LIKE $2`,
-      [valorId, `${valorId}%`]
-    );
+    if (producto.tipo_producto === "plato") {
+      const { rows } = await adminPool.query(
+        `UPDATE platos
+         SET disponible_llevar = $1,
+             activo = CASE
+               WHEN $1 = true THEN true
+               ELSE activo
+             END
+         WHERE id_plato = $2
+         RETURNING id_plato AS id_real,
+                   codigo_plato AS codigo_producto,
+                   'plato' AS tipo_producto,
+                   nombre,
+                   categoria,
+                   precio,
+                   descripcion,
+                   imagen,
+                   cantidad_de_platos AS stock,
+                   activo,
+                   disponible_llevar,
+                   (activo = true AND cantidad_de_platos > 0) AS disponible_local,
+                   (activo = true AND cantidad_de_platos > 0) AS disponible`,
+        [disponibleLlevar, producto.id_real]
+      );
 
-    if (bebida.rows.length > 0) {
-      // Las bebidas no tienen columna disponible_llevar en la estructura base. Se mantienen visibles para llevar si estan activas.
-      return res.json({ ok: true, message: 'Las bebidas se mantienen disponibles para llevar mientras esten activas' });
+      emitirProductoActualizado(rows[0]);
+
+      return res.json({
+        ok: true,
+        message: disponibleLlevar
+          ? "Producto visible para llevar"
+          : "Producto retirado de pedidos para llevar",
+        data: rows[0],
+      });
     }
 
-    return res.status(404).json({ ok: false, message: 'Producto no encontrado' });
+    if (producto.tipo_producto === "bebida") {
+      return res.json({
+        ok: true,
+        message:
+          "Las bebidas se controlan por stock y estado activo. No tienen columna disponible_llevar independiente.",
+      });
+    }
+
+    return res.status(400).json({
+      ok: false,
+      message: "Tipo de producto no válido",
+    });
   } catch (error) {
-    console.error('Error actualizando disponibilidad para llevar:', error);
+    console.error("Error actualizando disponibilidad para llevar:", error);
     res.status(500).json({ ok: false, message: error.message });
   }
 }

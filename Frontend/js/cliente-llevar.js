@@ -82,21 +82,36 @@ return {
 
 async function cargarProductosDesdeBD() {
   try {
-    const response = await fetch(`${API_BASE_MENU}/productos/disponibles`);
+    const response = await fetch(`${API_BASE_MENU}/productos/disponibles`, {
+      cache: "no-store",
+    });
+
     const data = await response.json();
-    if (!response.ok || data.ok === false) throw new Error(data.message || "No se pudo cargar productos");
-    productosMenuBD = (data.data || []).map(productoDesdeBD);
+
+    if (!response.ok || data.ok === false) {
+      throw new Error(data.message || "No se pudo cargar productos");
+    }
+
+    productosMenuBD = Array.isArray(data.data)
+      ? data.data.map(productoDesdeBD)
+      : [];
   } catch (error) {
-    console.warn("Usando productos locales porque no se pudo leer la BD:", error.message);
-    productosMenuBD = null;
+    console.error("No se pudo cargar el menú para llevar desde la BD:", error.message);
+
+    // En producción no usamos platos.js como respaldo.
+    productosMenuBD = [];
   }
 }
-
 function obtenerPlatosDisponibles() {
-  const base = productosMenuBD && productosMenuBD.length ? productosMenuBD : productosMenu;
-  return base.filter((plato) => productosMenuBD ? plato.disponible_llevar !== false : platosParaLlevar.includes(plato.id));
-}
+  const base = Array.isArray(productosMenuBD) ? productosMenuBD : [];
 
+  return base.filter((producto) => {
+    return (
+      producto.activo !== false &&
+      producto.disponible_llevar !== false
+    );
+  });
+}
 function obtenerDestinoResumen() {
   return "../Cliente/resumen_llevar.html";
 }

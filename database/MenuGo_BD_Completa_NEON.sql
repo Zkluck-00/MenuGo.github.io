@@ -1,8 +1,4 @@
--- ============================================================
--- MenuGo - Base de datos compatible con Neon
--- Ejecutar en Neon SQL Editor sobre la base neondb
--- Este script limpia el esquema public y crea tablas + datos iniciales.
--- ============================================================
+-- =======================================================
 
 DROP SCHEMA IF EXISTS public CASCADE;
 CREATE SCHEMA public;

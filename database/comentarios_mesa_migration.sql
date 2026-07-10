@@ -1,5 +1,4 @@
 -- MenuGo - migracion para comentarios del cliente al mesero
--- Ejecutar en Neon si se desea crear la tabla manualmente.
 
 CREATE TABLE IF NOT EXISTS comentarios_mesa (
     id_comentario_mesa SERIAL PRIMARY KEY,
