@@ -272,6 +272,8 @@ async function confirmarPedidoLlevar() {
 
   const esEfectivo = metodoPago === "Efectivo al recoger";
   const pagoCon = Number(document.getElementById("pago-con")?.value || 0);
+  const totalPedido = calcularTotal();
+  const vueltoEstimado = esEfectivo ? Math.max(pagoCon - totalPedido, 0) : 0;
 
   try {
     const data = await apiJson("/pedidos", {
@@ -280,11 +282,14 @@ async function confirmarPedidoLlevar() {
         tipo_pedido: "llevar",
         nombre_cliente: datosCliente.nombre,
         telefono: datosCliente.celular,
+        telefono_cliente: datosCliente.celular,
         telefono_llevar: datosCliente.celular,
         observacion_llevar: datosCliente.observacion,
         metodoPago,
         estadoPago: esEfectivo ? "Pendiente" : "Pagado",
         documento: "00000000",
+        vuelto_estimado: vueltoEstimado,
+        monto_recibido: esEfectivo ? pagoCon : totalPedido,
         items: carritoResumen.map(itemApi),
       }),
     });
@@ -293,7 +298,7 @@ async function confirmarPedidoLlevar() {
       ...data.data,
       metodoPago,
       pagoCon: esEfectivo ? pagoCon : calcularTotal(),
-      vueltoEstimado: esEfectivo ? Math.max(pagoCon - calcularTotal(), 0) : 0,
+      vueltoEstimado: vueltoEstimado,
       estadoPago: esEfectivo ? "Pendiente" : "Pagado",
     };
     localStorage.setItem("ultimoPedido", JSON.stringify(pedido));

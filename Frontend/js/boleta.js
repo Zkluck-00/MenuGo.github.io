@@ -31,14 +31,18 @@ function mostrarDatos(pedido) {
   document.getElementById("numero-boleta").textContent = numero;
   document.getElementById("cliente-boleta").textContent = pedido.cliente || "Consumidor final";
   document.getElementById("documento-boleta").textContent = pedido.documento || "XXXXXXXX";
-  document.getElementById("tipo-consumo").textContent = pedido.tipoConsumo || "No definido";
+  document.getElementById("tipo-consumo").textContent = pedido.tipoConsumo || "Para llevar";
   document.getElementById("mesa-pedido").textContent = pedido.mesa || "No aplica";
   document.getElementById("metodo-pago").textContent = pedido.metodoPago || "Pago digital";
   document.getElementById("estado-pago").textContent = "Pagado";
   document.getElementById("fecha-boleta").textContent = fecha.toLocaleDateString("es-PE");
   document.getElementById("hora-boleta").textContent = fecha.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
+  
+  const telefonoEl = document.getElementById("telefono-cliente");
+  if (telefonoEl && pedido.telefono) {
+    telefonoEl.textContent = pedido.telefono;
+  }
 }
-
 function mostrarProductos(productos) {
   const contenedor = document.getElementById("detalle-productos");
   contenedor.innerHTML = "";

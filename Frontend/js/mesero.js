@@ -88,6 +88,7 @@ function renderPedidosListos(lista) {
           <p class="text-sm font-black uppercase tracking-wide text-emerald-600">Listo para ${pedidoEsLlevar(pedido) ? "recoger" : "llevar a mesa"}</p>
           <h2 class="text-2xl font-black text-slate-950">${escapeHtml(pedido.codigo || `PED-${pedido.id_pedido}`)}</h2>
           <p class="mt-1 text-sm font-semibold text-slate-500">${escapeHtml(pedido.cliente || pedido.nombre_cliente || "Cliente")}</p>
+          ${pedido.telefono || pedido.telefono_cliente ? `<p class="text-sm font-semibold text-slate-500">${escapeHtml(pedido.telefono || pedido.telefono_cliente)}</p>` : ''}
         </div>
         <span class="rounded-full bg-emerald-100 px-3 py-1.5 text-sm font-black text-emerald-700">${escapeHtml(pedido.estadoPedido || "Listo")}</span>
       </div>
@@ -177,6 +178,10 @@ function abrirGestionCuenta(idCuenta) {
     return;
   }
   
+  const esLlevarEfectivo = cuenta.tipo_pedido === "llevar" && cuenta.metodoPago === "Efectivo al recoger";
+  const vueltoEstimado = cuenta.vuelto_estimado || 0;
+  const montoRecibido = cuenta.monto_recibido || cuenta.total_pendiente || 0;
+  
   const itemsHtml = detallesPendientes.map((item) => `
     <label class="flex items-start gap-3 border-b border-slate-100 py-3">
       <input type="checkbox" class="item-pago h-5 w-5" data-id="${item.id_detalle_producto}" data-monto="${Number(item.subtotal) - Number(item.monto_pagado || 0)}" checked>
@@ -192,6 +197,8 @@ function abrirGestionCuenta(idCuenta) {
       <div>
         <p class="text-sm font-black uppercase tracking-wide text-slate-500">Registrar pago</p>
         <h2 class="mt-1 text-3xl font-black text-slate-950">${escapeHtml(cuenta.etiqueta)}</h2>
+        ${esLlevarEfectivo ? `<p class="mt-1 text-sm font-semibold text-emerald-600">Vuelto estimado: S/ ${soles(vueltoEstimado)}</p>` : ''}
+        ${esLlevarEfectivo ? `<p class="text-sm font-semibold text-slate-500">Cliente pagara con: S/ ${soles(montoRecibido)}</p>` : ''}
       </div>
       <button onclick="cerrarGestion()" class="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-black">Cerrar</button>
     </div>
@@ -221,7 +228,7 @@ function abrirGestionCuenta(idCuenta) {
       <label class="mt-3 block">
         <span class="text-xs font-black uppercase text-slate-500" id="label-documento-gestion">Documento</span>
         <input id="documento-pago" value="" maxlength="11" class="mt-1 w-full rounded-xl border px-3 py-2" placeholder="Ingrese documento">
-        <p id="error-documento-gestion" class="mt-1 hidden text-xs font-bold text-red-600">El documento debe tener 8 dígitos para boleta o 11 dígitos para factura</p>
+        <p id="error-documento-gestion" class="mt-1 hidden text-xs font-bold text-red-600">El documento debe tener 8 digitos para boleta o 11 digitos para factura</p>
       </label>
       <button class="mt-5 w-full rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white">Guardar pago</button>
     </form>
@@ -352,12 +359,12 @@ async function registrarPagoCuenta(event, idCuenta) {
   const documento = document.getElementById("documento-pago")?.value || "";
   
   if (tipoComprobante === "boleta" && documento.length !== 8 && documento.length > 0) {
-    alert("El DNI debe tener 8 dígitos.");
+    alert("El DNI debe tener 8 digitos.");
     return;
   }
   
   if (tipoComprobante === "factura" && documento.length !== 11 && documento.length > 0) {
-    alert("El RUC debe tener 11 dígitos.");
+    alert("El RUC debe tener 11 digitos.");
     return;
   }
   
@@ -442,9 +449,24 @@ async function registrarPagoCuenta(event, idCuenta) {
       throw new Error(data.message || data.error || "Error al registrar pago");
     }
     
-    alert("Pago registrado correctamente en la base de datos.");
+    const pedidoActualizado = data.data || {};
+    
+    localStorage.setItem("ultimaBoleta", JSON.stringify({
+      ...pedidoActualizado,
+      cliente: pedidoActualizado.cliente || pedidoActualizado.nombre_cliente || "Cliente",
+      numeroBoleta: pedidoActualizado.numeroBoleta || `BOL-${String(Date.now()).slice(-6)}`,
+      fecha: new Date().toISOString(),
+      productos: pedidoActualizado.detalles || pedidoActualizado.productos || [],
+      total: pedidoActualizado.total || monto,
+      metodoPago: metodoPago,
+      tipoConsumo: pedidoActualizado.tipo_pedido || "llevar",
+      documento: documento || "00000000"
+    }));
+    
+    alert("Pago registrado correctamente. Generando boleta...");
     cerrarGestion();
-    await recargarMesero();
+    
+    window.location.href = "boleta.html";
   } catch (error) {
     console.error("Error en pago:", error);
     alert(`No se pudo registrar el pago: ${error.message}`);
