@@ -27,6 +27,18 @@ async function cargarDatosMesero() {
   pedidosListos = listos.data || [];
   pedidosMesero = pedidos.data || [];
   cuentasActivas = (cuentas.data || []).filter((cuenta) => Number(cuenta.total_pendiente || 0) > 0);
+  
+  cuentasActivas = cuentasActivas.map((cuenta) => {
+    const pedidoAsociado = pedidosMesero.find((p) => String(p.id_cuenta) === String(cuenta.id_cuenta));
+    if (pedidoAsociado) {
+      cuenta.vuelto_estimado = pedidoAsociado.vuelto_estimado || 0;
+      cuenta.monto_recibido = pedidoAsociado.monto_recibido || 0;
+      cuenta.tipo_pedido = pedidoAsociado.tipo_pedido || "local";
+      cuenta.metodoPago = pedidoAsociado.metodoPago || "Efectivo";
+    }
+    return cuenta;
+  });
+  
   mesasBackend = mesas.data || [];
 }
 
@@ -118,13 +130,18 @@ function renderCuentasLocales() {
     const puedePagar = !tieneNoEntregados && detalles.length > 0;
     
     const esLlevarEfectivo = cuenta.tipo_pedido === "llevar" && cuenta.metodoPago === "Efectivo al recoger";
-    const vueltoEstimado = cuenta.vuelto_estimado || 0;
-    const montoRecibido = cuenta.monto_recibido || cuenta.total_pendiente || 0;
+    const vueltoEstimado = Number(cuenta.vuelto_estimado || 0);
+    const montoRecibido = Number(cuenta.monto_recibido || 0);
     
     return `
     <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/5">
       <div class="mb-4 flex items-start justify-between gap-3">
-        <div><p class="text-sm font-black uppercase tracking-wide text-slate-500">Cuenta activa</p><h2 class="text-2xl font-black text-slate-950">${escapeHtml(cuenta.etiqueta)}</h2><p class="mt-1 text-sm font-semibold text-slate-500">Mesas: ${(cuenta.mesas || []).map((m) => `Mesa ${m}`).join(", ")}</p></div>
+        <div>
+          <p class="text-sm font-black uppercase tracking-wide text-slate-500">Cuenta activa</p>
+          <h2 class="text-2xl font-black text-slate-950">${escapeHtml(cuenta.etiqueta)}</h2>
+          <p class="mt-1 text-sm font-semibold text-slate-500">Mesas: ${(cuenta.mesas || []).map((m) => `Mesa ${m}`).join(", ")}</p>
+          ${cuenta.telefono ? `<p class="text-sm font-semibold text-slate-500">Telefono: ${escapeHtml(cuenta.telefono)}</p>` : ''}
+        </div>
         <span class="rounded-full bg-orange-100 px-3 py-1.5 text-sm font-black text-orange-700">Pendiente S/ ${soles(cuenta.total_pendiente)}</span>
       </div>
       <div class="mb-4 grid grid-cols-3 gap-3">
@@ -132,7 +149,7 @@ function renderCuentasLocales() {
         <div class="rounded-2xl bg-slate-50 p-3"><p class="text-xs font-black uppercase tracking-wide text-slate-500">Pagado</p><p class="mt-1 text-xl font-black text-emerald-600">S/ ${soles(cuenta.total_pagado)}</p></div>
         <div class="rounded-2xl bg-slate-50 p-3"><p class="text-xs font-black uppercase tracking-wide text-slate-500">Debe</p><p class="mt-1 text-xl font-black text-orange-600">S/ ${soles(cuenta.total_pendiente)}</p></div>
       </div>
-      ${esLlevarEfectivo ? `
+      ${esLlevarEfectivo && montoRecibido > 0 ? `
       <div class="mb-4 rounded-2xl bg-emerald-50 p-3 border border-emerald-200">
         <p class="text-sm font-black text-emerald-700">Cliente paga con: S/ ${soles(montoRecibido)}</p>
         <p class="text-sm font-black text-emerald-700">Vuelto a entregar: S/ ${soles(vueltoEstimado)}</p>
@@ -188,8 +205,8 @@ function abrirGestionCuenta(idCuenta) {
   }
   
   const esLlevarEfectivo = cuenta.tipo_pedido === "llevar" && cuenta.metodoPago === "Efectivo al recoger";
-  const vueltoEstimado = cuenta.vuelto_estimado || 0;
-  const montoRecibido = cuenta.monto_recibido || cuenta.total_pendiente || 0;
+  const vueltoEstimado = Number(cuenta.vuelto_estimado || 0);
+  const montoRecibido = Number(cuenta.monto_recibido || 0);
   
   const itemsHtml = detallesPendientes.map((item) => `
     <label class="flex items-start gap-3 border-b border-slate-100 py-3">
@@ -201,13 +218,19 @@ function abrirGestionCuenta(idCuenta) {
   const totalPendiente = Number(cuenta.total_pendiente || 0);
   contenido.innerHTML = `
   <input type="hidden" id="monto-pago" value="${totalPendiente}">
+  <input type="hidden" id="vuelto-estimado-cuenta" value="${vueltoEstimado}">
+  <input type="hidden" id="monto-recibido-cuenta" value="${montoRecibido}">
   <div class="border-b border-slate-200 p-5">
     <div class="flex justify-between gap-3">
       <div>
         <p class="text-sm font-black uppercase tracking-wide text-slate-500">Registrar pago</p>
         <h2 class="mt-1 text-3xl font-black text-slate-950">${escapeHtml(cuenta.etiqueta)}</h2>
-        ${esLlevarEfectivo ? `<p class="mt-1 text-sm font-semibold text-emerald-600">Vuelto estimado: S/ ${soles(vueltoEstimado)}</p>` : ''}
-        ${esLlevarEfectivo ? `<p class="text-sm font-semibold text-slate-500">Cliente pagara con: S/ ${soles(montoRecibido)}</p>` : ''}
+        ${esLlevarEfectivo && montoRecibido > 0 ? `
+        <div class="mt-2 rounded-2xl bg-emerald-50 p-3 border border-emerald-200">
+          <p class="text-sm font-black text-emerald-700">Cliente paga con: S/ ${soles(montoRecibido)}</p>
+          <p class="text-sm font-black text-emerald-700">Vuelto a entregar: S/ ${soles(vueltoEstimado)}</p>
+        </div>` : ''}
+        ${cuenta.telefono ? `<p class="mt-1 text-sm font-semibold text-slate-500">Telefono: ${escapeHtml(cuenta.telefono)}</p>` : ''}
       </div>
       <button onclick="cerrarGestion()" class="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-black">Cerrar</button>
     </div>
@@ -324,6 +347,8 @@ function actualizarSimulacionPagoGestion() {
   if (!box) return;
 
   const totalPendiente = Number(document.getElementById("monto-pago")?.value || 0);
+  const vueltoEstimado = Number(document.getElementById("vuelto-estimado-cuenta")?.value || 0);
+  const montoRecibido = Number(document.getElementById("monto-recibido-cuenta")?.value || 0);
 
   if (metodo === "Yape") {
     box.className = "mt-3 rounded-2xl border border-purple-200 bg-purple-50 p-3";
@@ -334,12 +359,12 @@ function actualizarSimulacionPagoGestion() {
     box.innerHTML = `<label class="block"><span class="text-xs font-black uppercase text-slate-500">Numero de tarjeta</span><input id="tarjeta-numero" type="text" maxlength="19" placeholder="0000 0000 0000 0000" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2 font-bold"></label><div class="mt-2 grid grid-cols-2 gap-2"><input id="tarjeta-vencimiento" type="text" maxlength="5" placeholder="MM/AA" class="rounded-xl border border-slate-200 px-3 py-2 font-bold"><input id="tarjeta-cvv" type="password" maxlength="3" placeholder="CVV" class="rounded-xl border border-slate-200 px-3 py-2 font-bold"></div>`;
   } else {
     box.className = "mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3";
-    box.innerHTML = `<label class="block"><span class="text-xs font-black uppercase text-emerald-700">Monto recibido</span><input id="monto-recibido-gestion" type="number" step="0.10" min="0" class="mt-1 w-full rounded-xl border border-emerald-200 px-3 py-2 font-bold" placeholder="${soles(totalPendiente)}"></label><p class="mt-2 text-sm font-bold text-emerald-800">Vuelto: S/ <span id="vuelto-gestion">0.00</span></p>`;
-    const montoRecibido = document.getElementById("monto-recibido-gestion");
-    if (montoRecibido) {
-      montoRecibido.value = totalPendiente;
-      montoRecibido.addEventListener("input", () => {
-        const recibido = Number(montoRecibido.value || 0);
+    const montoDefault = montoRecibido > 0 ? montoRecibido : totalPendiente;
+    box.innerHTML = `<label class="block"><span class="text-xs font-black uppercase text-emerald-700">Monto recibido</span><input id="monto-recibido-gestion" type="number" step="0.10" min="0" class="mt-1 w-full rounded-xl border border-emerald-200 px-3 py-2 font-bold" value="${soles(montoDefault)}"></label><p class="mt-2 text-sm font-bold text-emerald-800">Vuelto: S/ <span id="vuelto-gestion">${soles(vueltoEstimado)}</span></p>`;
+    const montoRecibidoInput = document.getElementById("monto-recibido-gestion");
+    if (montoRecibidoInput) {
+      montoRecibidoInput.addEventListener("input", () => {
+        const recibido = Number(montoRecibidoInput.value || 0);
         const vuelto = Math.max(recibido - totalPendiente, 0);
         const vueltoSpan = document.getElementById("vuelto-gestion");
         if (vueltoSpan) vueltoSpan.textContent = soles(vuelto);
