@@ -237,6 +237,9 @@ function renderPedidoRegistrado(pedido, metodoPago, pagoCon, vueltoEstimado) {
   const cliente = pedido.cliente || pedido.nombre_cliente || "Cliente";
   const main = document.getElementById("contenido-resumen");
   if (!main) return;
+  
+  const boletaUrl = `boleta.html`;
+  
   main.innerHTML = `
     <section class="mx-auto max-w-2xl rounded-3xl bg-white p-8 text-center shadow-xl shadow-slate-900/10">
       <div class="mx-auto mb-4 grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-3xl">✅</div>
@@ -252,7 +255,8 @@ function renderPedidoRegistrado(pedido, metodoPago, pagoCon, vueltoEstimado) {
         <p><strong>Total:</strong> S/ ${soles(pedido.total)}</p>
         ${metodoPago === "Efectivo al recoger" ? `<p><strong>Vuelto estimado:</strong> S/ ${soles(vueltoEstimado)}</p>` : ""}
       </div>
-      <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div class="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <a href="${escapeHtml(boletaUrl)}" class="rounded-2xl bg-emerald-600 px-6 py-3 font-black text-white hover:bg-emerald-700">Ver boleta</a>
         <a href="${escapeHtml(urlSeguimiento(codigo))}" class="rounded-2xl bg-orange-500 px-6 py-3 font-black text-white hover:bg-orange-600">Ver seguimiento</a>
         <a href="MenuParaLlevar.html" class="rounded-2xl border border-slate-300 px-6 py-3 font-black text-slate-700 hover:bg-slate-50">Nuevo pedido</a>
       </div>
@@ -297,11 +301,20 @@ async function confirmarPedidoLlevar() {
     const pedido = {
       ...data.data,
       metodoPago,
-      pagoCon: esEfectivo ? pagoCon : calcularTotal(),
+      pagoCon: esEfectivo ? pagoCon : totalPedido,
       vueltoEstimado: vueltoEstimado,
       estadoPago: esEfectivo ? "Pendiente" : "Pagado",
+      cliente: datosCliente.nombre,
+      telefono: datosCliente.celular,
+      total: totalPedido,
+      productos: carritoResumen,
+      numeroBoleta: `BOL-${String(Date.now()).slice(-6)}`,
+      fecha: new Date().toISOString(),
+      tipoConsumo: "Para llevar"
     };
+    
     localStorage.setItem("ultimoPedido", JSON.stringify(pedido));
+    localStorage.setItem("ultimaBoleta", JSON.stringify(pedido));
     localStorage.setItem("ultimoCodigoLlevar", pedido.codigo_seguimiento || pedido.codigo_llevar || pedido.codigo || "");
     localStorage.removeItem("pedido");
     carritoResumen = [];

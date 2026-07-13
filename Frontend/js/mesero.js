@@ -117,6 +117,10 @@ function renderCuentasLocales() {
     const tieneNoEntregados = detalles.some((item) => item.estado_pedido !== 'entregado');
     const puedePagar = !tieneNoEntregados && detalles.length > 0;
     
+    const esLlevarEfectivo = cuenta.tipo_pedido === "llevar" && cuenta.metodoPago === "Efectivo al recoger";
+    const vueltoEstimado = cuenta.vuelto_estimado || 0;
+    const montoRecibido = cuenta.monto_recibido || cuenta.total_pendiente || 0;
+    
     return `
     <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/5">
       <div class="mb-4 flex items-start justify-between gap-3">
@@ -128,6 +132,11 @@ function renderCuentasLocales() {
         <div class="rounded-2xl bg-slate-50 p-3"><p class="text-xs font-black uppercase tracking-wide text-slate-500">Pagado</p><p class="mt-1 text-xl font-black text-emerald-600">S/ ${soles(cuenta.total_pagado)}</p></div>
         <div class="rounded-2xl bg-slate-50 p-3"><p class="text-xs font-black uppercase tracking-wide text-slate-500">Debe</p><p class="mt-1 text-xl font-black text-orange-600">S/ ${soles(cuenta.total_pendiente)}</p></div>
       </div>
+      ${esLlevarEfectivo ? `
+      <div class="mb-4 rounded-2xl bg-emerald-50 p-3 border border-emerald-200">
+        <p class="text-sm font-black text-emerald-700">Cliente paga con: S/ ${soles(montoRecibido)}</p>
+        <p class="text-sm font-black text-emerald-700">Vuelto a entregar: S/ ${soles(vueltoEstimado)}</p>
+      </div>` : ''}
       <div class="mt-4 flex gap-3">
         <button onclick="abrirGestionCuenta('${escapeHtml(String(cuenta.id_cuenta))}')" 
           class="flex-1 rounded-2xl ${puedePagar ? 'bg-slate-950 hover:bg-slate-800' : 'bg-slate-400 cursor-not-allowed'} px-4 py-3 text-sm font-black text-white transition"

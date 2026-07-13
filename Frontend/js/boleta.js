@@ -5,7 +5,7 @@ function soles(valor) {
 }
 
 function cargarBoleta() {
-  const pedido = JSON.parse(localStorage.getItem("ultimoPedido") || localStorage.getItem("ultimaBoleta") || "null");
+  const pedido = JSON.parse(localStorage.getItem("ultimaBoleta") || localStorage.getItem("ultimoPedido") || "null");
   if (!pedido) {
     alert("No hay una boleta disponible.");
     window.location.href = "index.html";
@@ -13,8 +13,8 @@ function cargarBoleta() {
   }
 
   const estadoPago = String(pedido.estadoPago || "").toLowerCase();
-  if (estadoPago !== "pagado" && estadoPago !== "cancelado") {
-    alert("La boleta solo se genera cuando el pedido ya fue pagado.");
+  if (estadoPago !== "pagado" && estadoPago !== "cancelado" && estadoPago !== "pendiente") {
+    alert("La boleta solo se genera cuando el pedido ya fue pagado o esta pendiente de pago.");
     window.location.href = "index.html";
     return;
   }
@@ -26,7 +26,7 @@ function cargarBoleta() {
 
 function mostrarDatos(pedido) {
   const fecha = pedido.fecha ? new Date(pedido.fecha) : new Date();
-  const numero = pedido.numeroBoleta || `B001-${String(Date.now()).slice(-6)}`;
+  const numero = pedido.numeroBoleta || `BOL-${String(Date.now()).slice(-6)}`;
 
   document.getElementById("numero-boleta").textContent = numero;
   document.getElementById("cliente-boleta").textContent = pedido.cliente || "Consumidor final";
@@ -34,7 +34,7 @@ function mostrarDatos(pedido) {
   document.getElementById("tipo-consumo").textContent = pedido.tipoConsumo || "Para llevar";
   document.getElementById("mesa-pedido").textContent = pedido.mesa || "No aplica";
   document.getElementById("metodo-pago").textContent = pedido.metodoPago || "Pago digital";
-  document.getElementById("estado-pago").textContent = "Pagado";
+  document.getElementById("estado-pago").textContent = pedido.estadoPago || "Pagado";
   document.getElementById("fecha-boleta").textContent = fecha.toLocaleDateString("es-PE");
   document.getElementById("hora-boleta").textContent = fecha.toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" });
   
@@ -42,7 +42,13 @@ function mostrarDatos(pedido) {
   if (telefonoEl && pedido.telefono) {
     telefonoEl.textContent = pedido.telefono;
   }
+  
+  const vueltoEl = document.getElementById("vuelto-boleta");
+  if (vueltoEl && pedido.vueltoEstimado !== undefined) {
+    vueltoEl.textContent = soles(pedido.vueltoEstimado);
+  }
 }
+
 function mostrarProductos(productos) {
   const contenedor = document.getElementById("detalle-productos");
   contenedor.innerHTML = "";
