@@ -458,30 +458,14 @@ async function registrarPagoCuenta(event, idCuenta) {
       throw new Error(data.message || data.error || "Error al registrar pago");
     }
     
-    const pedidoActualizado = data.data || {};
-    
-    localStorage.setItem("ultimaBoleta", JSON.stringify({
-      ...pedidoActualizado,
-      cliente: pedidoActualizado.cliente || pedidoActualizado.nombre_cliente || "Cliente",
-      numeroBoleta: pedidoActualizado.numeroBoleta || `BOL-${String(Date.now()).slice(-6)}`,
-      fecha: new Date().toISOString(),
-      productos: pedidoActualizado.detalles || pedidoActualizado.productos || [],
-      total: pedidoActualizado.total || monto,
-      metodoPago: metodoPago,
-      tipoConsumo: pedidoActualizado.tipo_pedido || "llevar",
-      documento: documento || "00000000"
-    }));
-    
-    alert("Pago registrado correctamente. Generando boleta...");
+    alert("Pago registrado correctamente.");
     cerrarGestion();
-    
-    window.location.href = "boleta.html";
+    recargarMesero();
   } catch (error) {
     console.error("Error en pago:", error);
     alert(`No se pudo registrar el pago: ${error.message}`);
   }
 }
-
 function abrirPanelUnirMesas() {
   const panel = document.getElementById("panel-unir-mesas");
   if (!panel) return;
