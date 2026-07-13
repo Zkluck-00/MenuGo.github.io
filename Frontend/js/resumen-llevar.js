@@ -289,7 +289,7 @@ async function confirmarPedidoLlevar() {
         telefono_cliente: datosCliente.celular,
         telefono_llevar: datosCliente.celular,
         observacion_llevar: datosCliente.observacion,
-        metodoPago,
+        metodoPago: metodoPago,
         estadoPago: esEfectivo ? "Pendiente" : "Pagado",
         documento: "00000000",
         vuelto_estimado: vueltoEstimado,
@@ -300,7 +300,7 @@ async function confirmarPedidoLlevar() {
 
     const pedido = {
       ...data.data,
-      metodoPago,
+      metodoPago: metodoPago,
       pagoCon: esEfectivo ? pagoCon : totalPedido,
       vueltoEstimado: vueltoEstimado,
       estadoPago: esEfectivo ? "Pendiente" : "Pagado",

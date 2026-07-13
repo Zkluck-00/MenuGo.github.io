@@ -35,6 +35,7 @@ async function cargarDatosMesero() {
       cuenta.monto_recibido = pedidoAsociado.monto_recibido || 0;
       cuenta.tipo_pedido = pedidoAsociado.tipo_pedido || "local";
       cuenta.metodoPago = pedidoAsociado.metodoPago || "Efectivo";
+      cuenta.telefono_cliente = pedidoAsociado.telefono_cliente || pedidoAsociado.telefono || "";
     }
     return cuenta;
   });
@@ -132,6 +133,7 @@ function renderCuentasLocales() {
     const esLlevarEfectivo = cuenta.tipo_pedido === "llevar" && cuenta.metodoPago === "Efectivo al recoger";
     const vueltoEstimado = Number(cuenta.vuelto_estimado || 0);
     const montoRecibido = Number(cuenta.monto_recibido || 0);
+    const telefonoCliente = cuenta.telefono_cliente || "";
     
     return `
     <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/5">
@@ -140,7 +142,7 @@ function renderCuentasLocales() {
           <p class="text-sm font-black uppercase tracking-wide text-slate-500">Cuenta activa</p>
           <h2 class="text-2xl font-black text-slate-950">${escapeHtml(cuenta.etiqueta)}</h2>
           <p class="mt-1 text-sm font-semibold text-slate-500">Mesas: ${(cuenta.mesas || []).map((m) => `Mesa ${m}`).join(", ")}</p>
-          ${cuenta.telefono ? `<p class="text-sm font-semibold text-slate-500">Telefono: ${escapeHtml(cuenta.telefono)}</p>` : ''}
+          ${telefonoCliente ? `<p class="text-sm font-semibold text-slate-500">Telefono: ${escapeHtml(telefonoCliente)}</p>` : ''}
         </div>
         <span class="rounded-full bg-orange-100 px-3 py-1.5 text-sm font-black text-orange-700">Pendiente S/ ${soles(cuenta.total_pendiente)}</span>
       </div>
@@ -207,6 +209,7 @@ function abrirGestionCuenta(idCuenta) {
   const esLlevarEfectivo = cuenta.tipo_pedido === "llevar" && cuenta.metodoPago === "Efectivo al recoger";
   const vueltoEstimado = Number(cuenta.vuelto_estimado || 0);
   const montoRecibido = Number(cuenta.monto_recibido || 0);
+  const telefonoCliente = cuenta.telefono_cliente || "";
   
   const itemsHtml = detallesPendientes.map((item) => `
     <label class="flex items-start gap-3 border-b border-slate-100 py-3">
@@ -225,12 +228,12 @@ function abrirGestionCuenta(idCuenta) {
       <div>
         <p class="text-sm font-black uppercase tracking-wide text-slate-500">Registrar pago</p>
         <h2 class="mt-1 text-3xl font-black text-slate-950">${escapeHtml(cuenta.etiqueta)}</h2>
+        ${telefonoCliente ? `<p class="mt-1 text-sm font-semibold text-slate-500">Telefono: ${escapeHtml(telefonoCliente)}</p>` : ''}
         ${esLlevarEfectivo && montoRecibido > 0 ? `
         <div class="mt-2 rounded-2xl bg-emerald-50 p-3 border border-emerald-200">
           <p class="text-sm font-black text-emerald-700">Cliente paga con: S/ ${soles(montoRecibido)}</p>
           <p class="text-sm font-black text-emerald-700">Vuelto a entregar: S/ ${soles(vueltoEstimado)}</p>
         </div>` : ''}
-        ${cuenta.telefono ? `<p class="mt-1 text-sm font-semibold text-slate-500">Telefono: ${escapeHtml(cuenta.telefono)}</p>` : ''}
       </div>
       <button onclick="cerrarGestion()" class="rounded-2xl border border-slate-300 px-4 py-2 text-sm font-black">Cerrar</button>
     </div>
