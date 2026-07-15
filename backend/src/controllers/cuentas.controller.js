@@ -15,17 +15,11 @@ async function listarCuentasActivas(req, res) {
              c.estado,
              gm.nombre_grupo,
              gm.mesa_principal,
-             ARRAY_AGG(DISTINCT m.numero_mesa ORDER BY m.numero_mesa) AS mesas,
-             MAX(p.vuelto_estimado) AS vuelto_estimado,
-             MAX(p.monto_recibido) AS monto_recibido,
-             MAX(p.metodopago) AS metodo_pago,
-             MAX(p.tipo_pedido) AS tipo_pedido,
-             MAX(p.telefono_llevar) AS telefono_cliente
+             ARRAY_AGG(DISTINCT m.numero_mesa ORDER BY m.numero_mesa) AS mesas
       FROM cuentas c
       INNER JOIN grupos_mesa gm ON gm.id_grupo_mesa = c.id_grupo_mesa
       LEFT JOIN grupo_mesa_detalle gmd ON gmd.id_grupo_mesa = gm.id_grupo_mesa
       LEFT JOIN mesas m ON m.id_mesa = gmd.id_mesa
-      LEFT JOIN pedidos p ON p.id_grupo_mesa = gm.id_grupo_mesa
       WHERE c.estado = 'pendiente'
       GROUP BY c.id_cuenta, gm.id_grupo_mesa
       ORDER BY c.id_cuenta DESC
@@ -101,11 +95,6 @@ async function listarCuentasActivas(req, res) {
         total_pagado: totalPagado,
         total_pendiente: totalPendiente,
         estado: row.estado,
-        vuelto_estimado: Number(row.vuelto_estimado || 0),
-        monto_recibido: Number(row.monto_recibido || 0),
-        tipo_pedido: row.tipo_pedido || "local",
-        metodoPago: row.metodo_pago || "Efectivo",
-        telefono_cliente: row.telefono_cliente || "",
       });
     }
 

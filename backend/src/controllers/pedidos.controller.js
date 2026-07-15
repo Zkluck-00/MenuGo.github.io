@@ -397,7 +397,6 @@ async function mapPedido(clientOrPool, row) {
     nombre_cliente: row.nombre_cliente,
     telefono: row.telefono || row.telefono_llevar,
     telefono_llevar: row.telefono_llevar,
-    telefono_cliente: row.telefono_llevar || row.telefono,
     productos,
     items: productos,
     total: Number(row.total || productos.reduce((s, p) => s + p.subtotal, 0)),
@@ -411,9 +410,6 @@ async function mapPedido(clientOrPool, row) {
     fecha: row.fecha_creacion ? new Date(row.fecha_creacion).toLocaleDateString("es-PE") : "",
     hora: row.fecha_creacion ? new Date(row.fecha_creacion).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }) : "",
     fechaISO: row.fecha_creacion,
-    vuelto_estimado: Number(row.vuelto_estimado || 0),
-    monto_recibido: Number(row.monto_recibido || 0),
-    metodoPago: row.metodopago || null,
   };
 }
 
@@ -572,14 +568,11 @@ async function crearPedido(req, res) {
       productosResueltos.push({ item, producto, cantidad, precioUnitario, subtotal: cantidad * precioUnitario });
     }
 
-    const vueltoEstimado = Number(body.vuelto_estimado || 0);
-    const montoRecibido = Number(body.monto_recibido || 0);
-
     const pedidoResult = await client.query(
-      `INSERT INTO pedidos (id_grupo_mesa, id_usuario, tipo_pedido, nombre_cliente, telefono_llevar, estado, registrado_por, vuelto_estimado, monto_recibido, metodoPago)
-       VALUES ($1, $2, $3, $4, $5, 'pendiente', $6, $7, $8, $9)
+      `INSERT INTO pedidos (id_grupo_mesa, id_usuario, tipo_pedido, nombre_cliente, telefono_llevar, estado, registrado_por)
+       VALUES ($1, $2, $3, $4, $5, 'pendiente', $6)
        RETURNING *`,
-      [idGrupoMesa, idUsuario, tipoPedido, obtenerNombreCliente(body), tipoPedido === "llevar" ? limpiarTelefono(body.telefono || body.telefono_llevar) : null, body.registrado_por || null, vueltoEstimado, montoRecibido, body.metodoPago || null],
+      [idGrupoMesa, idUsuario, tipoPedido, obtenerNombreCliente(body), tipoPedido === "llevar" ? limpiarTelefono(body.telefono || body.telefono_llevar) : null, body.registrado_por || null],
     );
 
     const pedido = pedidoResult.rows[0];
