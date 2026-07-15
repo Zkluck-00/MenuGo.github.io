@@ -203,51 +203,45 @@ async function recalcularCuenta(client, idGrupoMesa) {
 }
 
 async function resolverProducto(client, item) {
-  const codigo = String(item.codigo_producto || item.id || item.id_producto || "").trim();
   const nombre = item.nombre || "Producto sin nombre";
-  
-  
-  let producto = await client.query(
-    `SELECT id_plato AS id, precio, activo, 'plato' AS tipo, nombre, categoria, descripcion
-     FROM platos
-     WHERE codigo_plato = $1 OR nombre = $2
-     LIMIT 1`,
-    [codigo, nombre],
-  );
-
-  if (producto.rows.length > 0) {
-    return producto.rows[0];
-  }
-
-  
-  producto = await client.query(
-    `SELECT id_bebida AS id, precio, activo, 'bebida' AS tipo, nombre, categoria, descripcion
-     FROM bebidas
-     WHERE codigo_bebida = $1 OR nombre = $2
-     LIMIT 1`,
-    [codigo, nombre],
-  );
-
-  if (producto.rows.length > 0) {
-    return producto.rows[0];
-  }
-
-  
   const precio = Number(item.precio || item.precio_unitario || 0);
-  if (precio <= 0) {
-    throw new Error(`Producto "${nombre}" no encontrado y no tiene precio valido para crear`);
-  }
-
   const tipo = item.tipo_producto || (esBebida(item) ? "bebida" : "plato");
   const categoria = item.categoria || tipo;
-  const descripcion = item.descripcion || "";
+  
+  let producto = await client.query(
+    `SELECT id_plato AS id, precio, activo, 'plato' AS tipo, nombre, categoria
+     FROM platos
+     WHERE nombre ILIKE $1
+     LIMIT 1`,
+    [nombre],
+  );
+
+  if (producto.rows.length > 0) {
+    return producto.rows[0];
+  }
+
+  producto = await client.query(
+    `SELECT id_bebida AS id, precio, activo, 'bebida' AS tipo, nombre, categoria
+     FROM bebidas
+     WHERE nombre ILIKE $1
+     LIMIT 1`,
+    [nombre],
+  );
+
+  if (producto.rows.length > 0) {
+    return producto.rows[0];
+  }
+
+  if (precio <= 0) {
+    throw new Error(`Producto "${nombre}" no encontrado y no tiene precio valido`);
+  }
 
   if (tipo === "bebida") {
     const nuevo = await client.query(
       `INSERT INTO bebidas (codigo_bebida, nombre, descripcion, categoria, precio, activo)
        VALUES ($1, $2, $3, $4, $5, true)
-       RETURNING id_bebida AS id, precio, activo, 'bebida' AS tipo, nombre, categoria, descripcion`,
-      [codigo || `beb-${Date.now()}`, nombre, descripcion, categoria, precio],
+       RETURNING id_bebida AS id, precio, activo, 'bebida' AS tipo, nombre, categoria`,
+      [`beb-${Date.now()}`, nombre, item.descripcion || "", categoria, precio],
     );
     return nuevo.rows[0];
   }
@@ -255,8 +249,8 @@ async function resolverProducto(client, item) {
   const nuevo = await client.query(
     `INSERT INTO platos (codigo_plato, nombre, descripcion, categoria, precio, disponible_llevar, activo)
      VALUES ($1, $2, $3, $4, $5, true, true)
-     RETURNING id_plato AS id, precio, activo, 'plato' AS tipo, nombre, categoria, descripcion`,
-    [codigo || `pla-${Date.now()}`, nombre, descripcion, categoria, precio],
+     RETURNING id_plato AS id, precio, activo, 'plato' AS tipo, nombre, categoria`,
+    [`pla-${Date.now()}`, nombre, item.descripcion || "", categoria, precio],
   );
   return nuevo.rows[0];
 }
