@@ -204,27 +204,37 @@ async function recalcularCuenta(client, idGrupoMesa) {
 
 async function resolverProducto(client, item) {
   const codigo = String(item.codigo_producto || item.id || item.id_producto || "").trim();
-  const tipo = item.tipo_producto || (esBebida(item) ? "bebida" : "plato");
   const nombre = item.nombre || "Producto sin nombre";
-  const descripcion = [item.variante, item.opcion || item.comentario].filter(Boolean).join(" - ");
-  const categoria = item.categoria || tipo;
   const precio = Number(item.precio || item.precio_unitario || 0);
+  const tipo = item.tipo_producto || (esBebida(item) ? "bebida" : "plato");
+  const categoria = item.categoria || tipo;
+  const descripcion = item.descripcion || "";
 
   if (tipo === "bebida") {
     let producto = await client.query(
       `SELECT id_bebida AS id, precio, activo, 'bebida' AS tipo
        FROM bebidas
-       WHERE codigo_bebida = $1 OR nombre = $2
+       WHERE codigo_bebida = $1
        LIMIT 1`,
-      [codigo, nombre],
+      [codigo],
     );
 
     if (producto.rows.length === 0) {
       producto = await client.query(
+        `SELECT id_bebida AS id, precio, activo, 'bebida' AS tipo
+         FROM bebidas
+         WHERE nombre = $1
+         LIMIT 1`,
+        [nombre],
+      );
+    }
+
+    if (producto.rows.length === 0 && precio > 0) {
+      producto = await client.query(
         `INSERT INTO bebidas (codigo_bebida, nombre, descripcion, categoria, precio, activo)
          VALUES ($1, $2, $3, $4, $5, true)
          RETURNING id_bebida AS id, precio, activo, 'bebida' AS tipo`,
-        [codigo || `beb-${Date.now()}`, nombre, descripcion, categoria, precio > 0 ? precio : 1],
+        [codigo || `beb-${Date.now()}`, nombre, descripcion, categoria, precio],
       );
     }
     return producto.rows[0];
@@ -233,17 +243,27 @@ async function resolverProducto(client, item) {
   let producto = await client.query(
     `SELECT id_plato AS id, precio, activo, 'plato' AS tipo
      FROM platos
-     WHERE codigo_plato = $1 OR nombre = $2
+     WHERE codigo_plato = $1
      LIMIT 1`,
-    [codigo, nombre],
+    [codigo],
   );
 
   if (producto.rows.length === 0) {
     producto = await client.query(
+      `SELECT id_plato AS id, precio, activo, 'plato' AS tipo
+       FROM platos
+       WHERE nombre = $1
+       LIMIT 1`,
+      [nombre],
+    );
+  }
+
+  if (producto.rows.length === 0 && precio > 0) {
+    producto = await client.query(
       `INSERT INTO platos (codigo_plato, nombre, descripcion, categoria, precio, disponible_llevar, activo)
        VALUES ($1, $2, $3, $4, $5, true, true)
        RETURNING id_plato AS id, precio, activo, 'plato' AS tipo`,
-      [codigo || `pla-${Date.now()}`, nombre, descripcion, categoria, precio > 0 ? precio : 1],
+      [codigo || `pla-${Date.now()}`, nombre, descripcion, categoria, precio],
     );
   }
   return producto.rows[0];
