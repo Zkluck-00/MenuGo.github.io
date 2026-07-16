@@ -203,15 +203,16 @@ async function recalcularCuenta(client, idGrupoMesa) {
 }
 
 async function resolverProducto(client, item) {
-  const codigo = String(item.codigo_producto || item.id || item.id_producto || "").trim();
+  const codigo = String(item.codigo_producto || "").trim();
   const nombre = item.nombre || "Producto sin nombre";
   const precio = Number(item.precio || item.precio_unitario || 0);
-  const tipo = item.tipo_producto || (esBebida(item) ? "bebida" : "plato");
-  const categoria = item.categoria || tipo;
-  const descripcion = item.descripcion || "";
 
-  if (tipo === "bebida") {
-    let producto = await client.query(
+  if (!codigo) {
+    throw new Error(`Producto "${nombre}" no tiene codigo_producto. No se puede procesar.`);
+  }
+
+  if (item.tipo_producto === "bebida" || esBebida(item)) {
+    const producto = await client.query(
       `SELECT id_bebida AS id, precio, activo, 'bebida' AS tipo
        FROM bebidas
        WHERE codigo_bebida = $1
@@ -220,27 +221,12 @@ async function resolverProducto(client, item) {
     );
 
     if (producto.rows.length === 0) {
-      producto = await client.query(
-        `SELECT id_bebida AS id, precio, activo, 'bebida' AS tipo
-         FROM bebidas
-         WHERE nombre = $1
-         LIMIT 1`,
-        [nombre],
-      );
-    }
-
-    if (producto.rows.length === 0 && precio > 0) {
-      producto = await client.query(
-        `INSERT INTO bebidas (codigo_bebida, nombre, descripcion, categoria, precio, activo)
-         VALUES ($1, $2, $3, $4, $5, true)
-         RETURNING id_bebida AS id, precio, activo, 'bebida' AS tipo`,
-        [codigo || `beb-${Date.now()}`, nombre, descripcion, categoria, precio],
-      );
+      throw new Error(`Bebida con codigo "${codigo}" no encontrada en la base de datos.`);
     }
     return producto.rows[0];
   }
 
-  let producto = await client.query(
+  const producto = await client.query(
     `SELECT id_plato AS id, precio, activo, 'plato' AS tipo
      FROM platos
      WHERE codigo_plato = $1
@@ -249,22 +235,7 @@ async function resolverProducto(client, item) {
   );
 
   if (producto.rows.length === 0) {
-    producto = await client.query(
-      `SELECT id_plato AS id, precio, activo, 'plato' AS tipo
-       FROM platos
-       WHERE nombre = $1
-       LIMIT 1`,
-      [nombre],
-    );
-  }
-
-  if (producto.rows.length === 0 && precio > 0) {
-    producto = await client.query(
-      `INSERT INTO platos (codigo_plato, nombre, descripcion, categoria, precio, disponible_llevar, activo)
-       VALUES ($1, $2, $3, $4, $5, true, true)
-       RETURNING id_plato AS id, precio, activo, 'plato' AS tipo`,
-      [codigo || `pla-${Date.now()}`, nombre, descripcion, categoria, precio],
-    );
+    throw new Error(`Plato con codigo "${codigo}" no encontrado en la base de datos.`);
   }
   return producto.rows[0];
 }
