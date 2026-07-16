@@ -92,36 +92,28 @@ async function cargarProductosDesdeBD() {
       throw new Error(data.message || "No se pudo cargar productos");
     }
 
-    if (Array.isArray(data.data)) {
-      productosMenuBD = data.data.map((producto) => {
-        const codigo = producto.codigo_plato || producto.codigo_bebida || producto.codigo_producto || String(producto.id_producto || producto.id);
-        const precio = Number(producto.precio || 0);
-        const nombre = producto.nombre || "Producto sin nombre";
-        const categoria = producto.categoria || producto.tipo_producto || "otros";
-        
-        return {
-          id: codigo,
-          codigo_producto: codigo,
-          nombre: nombre,
-          descripcion: producto.descripcion || "",
-          categoria: categoria,
-          imagen: producto.imagen || "https://via.placeholder.com/300x200?text=MenuGo",
-          precio: precio,
-          disponible_llevar: producto.disponible_llevar !== false,
-          activo: producto.activo !== false,
-          variantes: [
-            { nombre: "Unico", precio: precio }
-          ],
-          opciones: ["Preparacion normal"]
-        };
-      });
-    } else {
-      productosMenuBD = [];
-    }
+    productosMenuBD = Array.isArray(data.data)
+      ? data.data.map(productoDesdeBD)
+      : [];
   } catch (error) {
-    console.error("No se pudo cargar el menu para llevar desde la BD:", error.message);
+    console.error("No se pudo cargar el menú para llevar desde la BD:", error.message);
+
+    // En producción no usamos platos.js como respaldo.
     productosMenuBD = [];
   }
+}
+function obtenerPlatosDisponibles() {
+  const base = Array.isArray(productosMenuBD) ? productosMenuBD : [];
+
+  return base.filter((producto) => {
+    return (
+      producto.activo !== false &&
+      producto.disponible_llevar !== false
+    );
+  });
+}
+function obtenerDestinoResumen() {
+  return "../Cliente/resumen_llevar.html";
 }
 
 
