@@ -356,8 +356,8 @@ async function registrarProductoAdmin(event) {
   const paraLlevar = Boolean(document.getElementById("producto-para-llevar")?.checked);
   const agregarMenuDia = Boolean(document.getElementById("producto-menu-dia")?.checked);
 
-  if (!nombre || !categoria || !descripcion || precio <= 0) {
-    alert("Completa nombre, categoria, descripcion y precio.");
+ if (!nombre || !categoria || !descripcion || isNaN(precio) || precio <= 0) {
+    alert("Por favor, completa todos los campos obligatorios y asegúrate de que el precio sea mayor a cero.");
     return;
   }
 
