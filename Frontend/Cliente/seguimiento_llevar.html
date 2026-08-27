@@ -22,7 +22,7 @@
     </header>
 
     <section class="rounded-3xl bg-white p-5 shadow-md shadow-slate-900/5">
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
+      <form onsubmit="event.preventDefault(); consultarSeguimientoManual();">
         <label class="block">
           <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Código de seguimiento</span>
           <input id="codigo-seguimiento" type="text" placeholder="LLEV-001"
