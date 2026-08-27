@@ -51,11 +51,15 @@ function urlMenuMesa(numeroMesa) {
 }
 
 function totalItem(item) {
-  return Number(item.subtotal || Number(item.precio || 0) * Number(item.cantidad || 1));
+  const cantidad = Number(item.cantidad) || 1;
+  const precio = Number(item.precio) || 0;
+  return Number(item.subtotal || (precio * cantidad));
 }
 
 function totalPedido(pedido) {
-  return Number(pedido.total || (pedido.productos || []).reduce((s, item) => s + totalItem(item), 0));
+  const totalDb = Number(pedido.total);
+  if (!isNaN(totalDb) && totalDb > 0) return totalDb;
+  return (pedido.productos || []).reduce((s, item) => s + totalItem(item), 0);
 }
 
 function esPagado(pedido) {
