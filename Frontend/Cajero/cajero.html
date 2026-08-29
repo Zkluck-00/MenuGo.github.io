@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MenuGo | Caja y Cobros</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen bg-[#f7f3ec] text-slate-900">
+  <main class="mx-auto w-full max-w-7xl px-4 py-5 lg:px-6">
+    
+    <header
+      class="mb-6 rounded-[28px] bg-gradient-to-br from-slate-950 to-slate-700 px-5 py-6 shadow-xl shadow-slate-900/20 md:px-8">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="flex flex-col items-center gap-4 text-center md:flex-row md:text-left">
+          <img src="../img/Log.png" alt="Logo MenuGo"
+            class="h-20 w-20 rounded-full bg-white object-contain p-2 shadow-md" />
+          <div>
+            <p class="text-sm font-black uppercase tracking-wide text-white">Panel del cajero</p>
+            <h1 class="mt-1 text-3xl font-black leading-tight text-white md:text-4xl">Punto de Venta</h1>
+            <p class="mt-2 max-w-2xl text-base font-medium text-white/90">
+              Gestiona el cobro de las mesas, pedidos para llevar, revisa los ingresos por método de pago y realiza el corte de caja.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-2 lg:justify-end">
+          <a href="cuentas_pendientes.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Cuentas
+            pendientes</a>
+          <a href="corte_caja.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Corte
+            de caja</a>
+          <a href="historial_pagos.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Historial
+            de pagos</a>
+          <a href="facturacion.html"
+            class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Facturación</a>
+        </div>
+      </div>
+    </header>
+
+    <section class="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Por Cobrar</p>
+        <p id="stat-pendientes" class="mt-2 text-3xl font-black text-orange-600">0</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Cobradas</p>
+        <p id="stat-cobradas" class="mt-2 text-3xl font-black text-emerald-600">0</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Efectivo</p>
+        <p id="stat-efectivo" class="mt-2 text-3xl font-black text-blue-600">$0.00</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Tarjeta/Transf.</p>
+        <p id="stat-tarjeta" class="mt-2 text-3xl font-black text-purple-600">$0.00</p>
+      </article>
+      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Total en Caja</p>
+        <p id="stat-total" class="mt-2 text-3xl font-black text-slate-950">$0.00</p>
+      </article>
+    </section>
+
+    <section class="mb-5 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div class="flex flex-wrap gap-2">
+          <button type="button" data-filtro="todas" onclick="cambiarFiltroCuentas('todas')"
+            class="filtro-cuenta rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">Todas</button>
+          <button type="button" data-filtro="pendientes" onclick="cambiarFiltroCuentas('pendientes')"
+            class="filtro-cuenta rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Pendientes</button>
+          <button type="button" data-filtro="cobradas" onclick="cambiarFiltroCuentas('cobradas')"
+            class="filtro-cuenta rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Cobradas</button>
+          <button type="button" data-filtro="llevar" onclick="cambiarFiltroCuentas('llevar')"
+            class="filtro-cuenta rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Para Llevar</button>
+          <button type="button" data-filtro="canceladas" onclick="cambiarFiltroCuentas('canceladas')"
+            class="filtro-cuenta rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Canceladas</button>
+        </div>
+        <button type="button" onclick="sincronizarCaja()"
+          class="rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-black text-emerald-700 hover:bg-emerald-100">
+          Sincronizar Pagos
+        </button>
+      </div>
+    </section>
+
+    <section id="alertas-pagos-pendientes" class="mb-5 hidden rounded-3xl border border-orange-200 bg-orange-50 p-4 shadow-sm"></section>
+
+    <section id="notificaciones-caja" class="mb-5 hidden rounded-3xl border border-emerald-200 bg-emerald-50 p-4 shadow-sm"></section>
+
+    <section id="contenedor-cuentas" class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+    </section>
+  </main>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/tiempo-real.js"></script>
+  <script src="../js/personal-auth.js"></script>
+  <script src="../js/caja.js"></script>
+</body>
+
+</html>
