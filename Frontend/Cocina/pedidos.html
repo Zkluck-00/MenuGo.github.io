@@ -70,7 +70,18 @@
                         class="px-6 py-3 rounded-2xl bg-emerald-50 text-emerald-800 font-bold text-sm hover:bg-emerald-100 transition transform active:scale-95">
                         ✅ Listos
                     </button>
-                    <button onclick="toggleFullscreen()" id="btn-fullscreen" class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-2xl font-bold text-xs shadow-sm transition transform active:scale-95" title="Pantalla completa">
+
+                    <!-- Botón para silenciar/activar sonido -->
+                    <button onclick="toggleSonido()" id="btn-sonido" 
+                        class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-2xl font-bold text-xs shadow-sm transition transform active:scale-95" 
+                        title="Activar/Desactivar sonido">
+                        🔊 Sonido ON
+                    </button>
+
+                    <!-- Botón para modo pantalla completa -->
+                    <button onclick="toggleFullscreen()" id="btn-fullscreen" 
+                        class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-2xl font-bold text-xs shadow-sm transition transform active:scale-95" 
+                        title="Pantalla completa">
                         🖥️ Pantalla Completa
                     </button>
                 </div>
