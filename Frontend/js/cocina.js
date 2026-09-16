@@ -155,7 +155,7 @@ function renderPedido(pedido) {
       <div class="mb-4 flex items-start justify-between gap-3">
         <div>
           <p class="text-sm font-black uppercase tracking-wide text-slate-500">Pedido</p>
-          <h2 class="text-2xl font-black text-slate-950">${escapeHtml(pedido.codigo || `PED-${pedido.id_pedido || pedido.id}`)}</h2>
+         <h2 class="text-2xl font-black text-slate-950 cursor-pointer hover:text-orange-600 transition" title="Copiar código" onclick="navigator.clipboard.writeText('${escapeHtml(pedido.codigo || `PED-${pedido.id_pedido || pedido.id}`)}'); mostrarNotificacion('Código copiado al portapapeles', 'success');">${escapeHtml(pedido.codigo || `PED-${pedido.id_pedido || pedido.id}`)}</h2>
           <p class="mt-1 text-sm font-semibold text-slate-500">${escapeHtml(pedido.fecha || "")} ${escapeHtml(pedido.hora || "")}</p>
         </div>
         <span class="rounded-full px-3 py-1.5 text-sm font-black ${colorEstado(estado)}">${escapeHtml(estado)}</span>
