@@ -100,6 +100,8 @@ async function mostrarPedidos() {
   }
 
   const pedidosFiltrados = pedidosActivosCocina().filter(coincideFiltro);
+  const horaActual = new Date().toLocaleTimeString();
+
   if (pedidosFiltrados.length === 0) {
     contenedor.innerHTML = `
       <div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
@@ -107,20 +109,20 @@ async function mostrarPedidos() {
         <p class="mt-2 text-slate-500">Cocina solo ve pedidos pendientes, en preparacion o listos.</p>
       </div>`;
     
-    // Actualizar subtítulo incluso si está vacío
+    // Actualizar subtítulo con hora incluso si está vacío
     const subtituloVacio = document.querySelector("header p");
     if (subtituloVacio) {
-        subtituloVacio.textContent = `Pedidos activos en cola: 0`;
+        subtituloVacio.textContent = `Pedidos activos en cola: 0 | Última actualización: ${horaActual}`;
     }
     return;
   }
 
   contenedor.innerHTML = pedidosFiltrados.map(renderPedido).join("");
 
-  // Actualizar subtítulo con el total de pedidos activos
+  // Actualizar subtítulo con el total de pedidos activos y marca de tiempo
   const subtitulo = document.querySelector("header p");
   if (subtitulo) {
-      subtitulo.textContent = `Pedidos activos en cola: ${pedidosFiltrados.length}`;
+      subtitulo.textContent = `Pedidos activos en cola: ${pedidosFiltrados.length} | Última actualización: ${horaActual}`;
   }
 }
 
@@ -197,11 +199,28 @@ function recargarCocina() {
   mostrarPedidos();
 }
 
+function reproducirAlertaSonora() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.frequency.value = 587.33; // Tono agradable (Nota D5)
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.2);
+  } catch (e) {
+    // Evita errores si el navegador bloquea audio
+  }
+}
+
 function iniciarEscuchaEventosCocina() {
   if (typeof realTime === "undefined" || !realTime) return;
   realTime.connect();
 
   realTime.on("pedido:creado", () => {
+    reproducirAlertaSonora();
     mostrarNotificacion("¡Nuevo pedido recibido en cocina!", "success");
     mostrarPedidos();
   });
