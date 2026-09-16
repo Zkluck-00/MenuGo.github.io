@@ -37,13 +37,17 @@ const cocinaPool = usaNeon
   ? poolNeon
   : crearPoolLocal(process.env.DB_USER_COCINA || process.env.DB_USER || "postgres", process.env.DB_PASS_COCINA || process.env.DB_PASSWORD || "12345");
 
+const cajeroPool = usaNeon
+  ? poolNeon
+  : crearPoolLocal(process.env.DB_USER_CAJERO || process.env.DB_USER || "postgres", process.env.DB_PASS_CAJERO || process.env.DB_PASSWORD || "12345");
+
 const clientePool = usaNeon
   ? poolNeon
   : crearPoolLocal(process.env.DB_USER_CLIENTE || process.env.DB_USER || "postgres", process.env.DB_PASS_CLIENTE || process.env.DB_PASSWORD || "12345");
 
 const pool = adminPool;
 
-for (const [nombre, instancia] of Object.entries({ pool, adminPool, meseroPool, cocinaPool, clientePool })) {
+for (const [nombre, instancia] of Object.entries({ pool, adminPool, meseroPool, cocinaPool, cajeroPool, clientePool })) {
   if (instancia && !instancia.__menugoErrorHandler) {
     instancia.on("error", (error) => {
       console.error(`Error inesperado en PostgreSQL (${nombre}):`, error.message);
@@ -52,4 +56,4 @@ for (const [nombre, instancia] of Object.entries({ pool, adminPool, meseroPool, 
   }
 }
 
-module.exports = { pool, adminPool, meseroPool, cocinaPool, clientePool };
+module.exports = { pool, adminPool, meseroPool, cocinaPool, cajeroPool, clientePool };
