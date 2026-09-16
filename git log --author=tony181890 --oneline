@@ -1,0 +1,55 @@
+[33mbd6fd63[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mfeature/actualizacion[m[33m, [m[1;31morigin/feature/actualizacion[m[33m)[m feat(cocina): mejora diseño del login, añade logout y valida estados en backend
+[33mc82d9fc[m[33m ([m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m, [m[1;32mmain[m[33m)[m Agregando estructura de rol cajero y login
+[33m93042b7[m Mejora en calculo de totales de pedidos
+[33m111039d[m feat(ui): permitir consulta mediante la tecla Enter en el buscador
+[33m21c659b[m se agrego unas linia para pruebas
+[33m54f2ac7[m Enhance product validation in admin-menu.js
+[33m7c9b8cb[m Add files via upload
+[33m40efa5d[m Add files via upload
+[33m6cbe29b[m Add files via upload
+[33m40fb4ae[m Add files via upload
+[33md38ec19[m Add files via upload
+[33me614fd3[m Add files via upload
+[33me0b2e1d[m Add files via upload
+[33m67e331d[m Add files via upload
+[33mdab405e[m Add files via upload
+[33m8a94932[m Add files via upload
+[33m6074e38[m Add files via upload
+[33m9e11918[m Add files via upload
+[33m1d1e7a4[m Add files via upload
+[33mc92c74c[m Add files via upload
+[33m39ed83b[m Add files via upload
+[33m8ac73b0[m Add files via upload
+[33m1f6990d[m Add files via upload
+[33m1953fc1[m Delete boleta.js
+[33mb912963[m Delete cliente-llevar.js
+[33m799a46e[m Delete mesero.js
+[33mb55b1d0[m Delete resumen-llevar.js
+[33m5fa32ca[m Add files via upload
+[33m7e58d7b[m Add files via upload
+[33m1949079[m cambios en administrar platos administrador y cliente (llevar y consumir en local )
+[33m423fb38[m validar 8 digitos dni
+[33m8fa7a55[m editar cambios en registrar trabajadores
+[33ma9424de[m merge cambios remotos
+[33m78fd4bf[m Refactor trabajadores.html layout and styles
+[33m70531ba[m Remove specific roles from trabajador selection
+[33md75053b[m arreglo de comentarios
+[33mad3d844[m Delete VERIFICACION_QR_MESAS.txt
+[33ma6b986b[m Delete GUIA_DESPLIEGUE_NEON_RENDER_VERCEL.txt
+[33mcf14fe4[m Mejorar productos trabajadores credenciales y cierre de sesion
+[33m6769424[m eliminar stock admin
+[33m058f4cb[m Agregar seguimiento de pedidos para llevar
+[33m27d997b[m centrar botones mesero/tomar-pedido
+[33m7bc246a[m borrar boton de ver cocina
+[33m71dcccd[m Agregar notificacion al mesero cuando cliente solicita cuenta
+[33m8c0f4f6[m cambios en mesero
+[33m0656ed9[m Cambiar actualizar por informar problema y validar solicitud de cuenta
+[33m109cb6e[m Remove specific roles from trabajador selection
+[33m9a6ba1b[m Update image URL for 'Pasado de mero'
+[33m22ea6cd[m Update image URL for ceviche de mero
+[33m2aac331[m agregar comentarios de cliente para mesero
+[33m2c48985[m eliminar boton actualizar
+[33m86c1c98[m MenuGo finalizado
+[33mccb6041[m Update production API URL in config.js
+[33m4783ea2[m Modify .env.example with new database and frontend URLs
+[33mc1b54a9[m menugo final
