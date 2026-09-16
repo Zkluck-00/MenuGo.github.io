@@ -174,6 +174,7 @@ async function cambiarEstado(idPedido, nuevoEstado) {
       method: "PATCH",
       body: JSON.stringify({ estado: nuevoEstado }),
     });
+    mostrarNotificacion(`Pedido actualizado a: ${nuevoEstado}`, "success");
     await mostrarPedidos();
   } catch (error) {
     alert(`No se pudo actualizar el pedido: ${error.message}`);
@@ -188,13 +189,16 @@ function iniciarEscuchaEventosCocina() {
   if (typeof realTime === "undefined" || !realTime) return;
   realTime.connect();
 
-  const handlePedidoActualizado = () => {
+  realTime.on("pedido:creado", () => {
+    mostrarNotificacion("¡Nuevo pedido recibido en cocina!", "success");
     mostrarPedidos();
-  };
+  });
 
-  realTime.on("pedido:creado", handlePedidoActualizado);
-  realTime.on("pedido:actualizado", handlePedidoActualizado);
+  realTime.on("pedido:actualizado", () => {
+    mostrarPedidos();
+  });
 }
+
 function mostrarNotificacion(mensaje, tipo = "success") {
     const contenedor = document.getElementById("toast-container");
     if (!contenedor) return;
@@ -228,5 +232,6 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!document.hidden) mostrarPedidos();
   }, 15000);
 });
+
 // Módulo de Cocina - MenuGo
 console.log("Panel de cocina inicializado correctamente");
