@@ -67,6 +67,7 @@ function pedidosActivosCocina() {
 
 function filtrarPedidos(estado) {
   filtroActual = estado;
+  console.log("Filtrando pedidos por: ", estado);
   mostrarPedidos();
 }
 
@@ -202,3 +203,5 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!document.hidden) mostrarPedidos();
   }, 15000);
 });
+// Módulo de Cocina - MenuGo
+console.log("Panel de cocina inicializado correctamente");
