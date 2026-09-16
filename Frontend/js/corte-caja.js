@@ -1,12 +1,93 @@
-< !DOCTYPE html >
-    <html lang="es">
-        <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>MenuGo | Corte de caja</title><script src="https://cdn.tailwindcss.com"></script></head>
-            <body class="min-h-screen bg-[#f7f3ec] text-slate-900">
-                <main class="mx-auto max-w-6xl px-4 py-6">
-                    <header class="mb-6 rounded-[28px] bg-slate-950 p-6 text-white"><div class="flex flex-wrap items-center justify-between gap-4"><div><p class="text-sm font-black uppercase text-orange-400">Cajero</p><h1 class="text-3xl font-black">Corte de caja</h1><p class="mt-2 text-white/80">Cierra únicamente los cobros registrados por tu usuario desde el último corte.</p></div><div class="flex gap-2"><a href="cajero.html" class="rounded-xl bg-white/10 px-4 py-3 font-black">Volver a Caja</a><a href="historial_pagos.html" class="rounded-xl bg-white/10 px-4 py-3 font-black">Historial</a></div></div></header>
-                    <section id="resumen-corte" class="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6"></section>
-                    <section class="mt-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><h2 class="text-xl font-black">Registrar cierre</h2><p class="mt-1 text-sm font-semibold text-slate-500">Los pagos incluidos quedarán vinculados a este cierre y no volverán a contarse.</p><textarea id="observaciones-corte" rows="3" class="mt-4 w-full rounded-2xl border border-slate-300 p-3 font-semibold" placeholder="Observaciones del turno (opcional)"></textarea><button onclick="cerrarCajaActual()" class="mt-3 rounded-2xl bg-orange-500 px-5 py-3 font-black text-white hover:bg-orange-600">Realizar corte</button></section>
-                    <section class="mt-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm"><h2 class="text-xl font-black">Mis cierres anteriores</h2><div id="historial-cortes" class="mt-4 space-y-3"></div></section>
-                </main>
-                <script src="../js/config.js"></script><script src="../js/personal-auth.js"></script><script src="../js/corte-caja.js"></script>
-            </body></html>
+if (window.MENUGO_PERSONAL_BLOQUEADO) throw new Error("Acceso bloqueado.");
+const API_CORTE = window.MENUGO_API || "http://localhost:4000/api";
+function sC(v) {
+  return `S/ ${Number(v || 0).toFixed(2)}`;
+}
+function eC(v) {
+  return String(v ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;");
+}
+async function apiCorte(path, options = {}) {
+  const r = await fetch(`${API_CORTE}${path}`, {
+    ...options,
+    headers: headersAutenticadosPersonal("cajero", options.headers || {}),
+  });
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) {
+    localStorage.removeItem("menugo_cajero_sesion");
+    location.replace("login.html?access=required");
+    throw new Error("Sesion vencida");
+  }
+  if (!r.ok || d.ok === false)
+    throw new Error(d.message || "Error de servidor");
+  return d;
+}
+async function cargarCorte() {
+  try {
+    const [actual, cierres] = await Promise.all([
+      apiCorte("/cajero/corte/actual"),
+      apiCorte("/cajero/cortes"),
+    ]);
+    renderCorte(actual.data || {});
+    renderCierres(cierres.data || []);
+  } catch (err) {
+    document.getElementById("resumen-corte").innerHTML =
+      `<div class="col-span-full rounded-2xl bg-red-50 p-4 font-bold text-red-700">${eC(err.message)}</div>`;
+  }
+}
+function renderCorte(d) {
+  const vals = [
+    ["Pagos", d.cantidad_pagos || 0],
+    ["Efectivo", sC(d.efectivo)],
+    ["Yape", sC(d.yape)],
+    ["Plin", sC(d.plin)],
+    [
+      "Tarjetas",
+      sC(Number(d.tarjeta_credito || 0) + Number(d.tarjeta_debito || 0)),
+    ],
+    ["Total", sC(d.total_general)],
+  ];
+  document.getElementById("resumen-corte").innerHTML = vals
+    .map(
+      ([a, b]) =>
+        `<article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm"><p class="text-xs font-black uppercase text-slate-500">${a}</p><p class="mt-2 text-2xl font-black">${b}</p></article>`,
+    )
+    .join("");
+}
+function renderCierres(lista) {
+  const c = document.getElementById("historial-cortes");
+  if (!lista.length) {
+    c.innerHTML =
+      '<p class="font-semibold text-slate-500">Aun no tienes cierres registrados.</p>';
+    return;
+  }
+  c.innerHTML = lista
+    .map(
+      (x) =>
+        `<article class="rounded-2xl border border-slate-200 p-4"><div class="flex flex-wrap justify-between gap-3"><div><strong>Cierre #${x.id_cierre_caja}</strong><p class="text-sm text-slate-500">${new Date(x.fecha_hasta).toLocaleString("es-PE")} · ${x.cantidad_pagos} pagos</p></div><strong class="text-emerald-600">${sC(x.total_general)}</strong></div>${x.observaciones ? `<p class="mt-2 text-sm text-slate-600">${eC(x.observaciones)}</p>` : ""}</article>`,
+    )
+    .join("");
+}
+async function cerrarCajaActual() {
+  if (
+    !confirm("¿Registrar el cierre con todos tus pagos pendientes de cierre?")
+  )
+    return;
+  try {
+    await apiCorte("/cajero/corte", {
+      method: "POST",
+      body: JSON.stringify({
+        observaciones:
+          document.getElementById("observaciones-corte")?.value || "",
+      }),
+    });
+    alert("Cierre de caja registrado.");
+    document.getElementById("observaciones-corte").value = "";
+    await cargarCorte();
+  } catch (err) {
+    alert(err.message);
+  }
+}
+document.addEventListener("DOMContentLoaded", cargarCorte);
