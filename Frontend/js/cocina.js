@@ -195,6 +195,31 @@ function iniciarEscuchaEventosCocina() {
   realTime.on("pedido:creado", handlePedidoActualizado);
   realTime.on("pedido:actualizado", handlePedidoActualizado);
 }
+function mostrarNotificacion(mensaje, tipo = "success") {
+    const contenedor = document.getElementById("toast-container");
+    if (!contenedor) return;
+
+    const toast = document.createElement("div");
+    toast.className = `pointer-events-auto flex items-center gap-3 px-5 py-4 rounded-2xl shadow-2xl text-sm font-bold text-white transition-all transform translate-y-2 opacity-0 ${
+        tipo === "success" ? "bg-emerald-600" : "bg-slate-900"
+    }`;
+
+    toast.innerHTML = `
+        <span>${tipo === "success" ? "✅" : "🔔"}</span>
+        <span>${escapeHtml(mensaje)}</span>
+    `;
+
+    contenedor.appendChild(toast);
+
+    setTimeout(() => {
+        toast.classList.remove("translate-y-2", "opacity-0");
+    }, 10);
+
+    setTimeout(() => {
+        toast.classList.add("translate-y-2", "opacity-0");
+        setTimeout(() => toast.remove(), 300);
+    }, 4000);
+}
 
 document.addEventListener("DOMContentLoaded", () => {
   mostrarPedidos();
