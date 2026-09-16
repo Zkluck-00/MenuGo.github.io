@@ -84,7 +84,16 @@
         </main>
 
     </div>
+
+    <!-- Contenedor de Notificaciones Flotantes (Toast) -->
     <div id="toast-container" class="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none"></div>
+
+    <!-- Botón flotante para volver arriba -->
+    <button onclick="window.scrollTo({ top: 0, behavior: 'smooth' })" 
+        class="fixed bottom-6 left-6 z-40 bg-white/95 backdrop-blur-md border border-slate-200 text-slate-700 p-3.5 rounded-2xl shadow-xl hover:bg-slate-100 transition transform active:scale-95"
+        title="Volver arriba">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7"/></svg>
+    </button>
 
     <script src="../js/config.js"></script>
     <script src="../js/tiempo-real.js"></script>
