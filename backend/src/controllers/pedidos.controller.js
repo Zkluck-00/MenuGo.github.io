@@ -2,7 +2,7 @@ const { clientePool, meseroPool, cocinaPool } = require("../config/db");
 const eventEmitter = require('../utils/eventEmitter');
 const ESTADOS_VALIDOS = ["pendiente", "preparando", "listo", "entregado", "pagado", "cancelado"];
 const ESTADOS_COCINA = ["preparando", "listo", "cancelado"];
-const ESTADOS_MESERO = ["entregado", "pagado", "cancelado"];
+const ESTADOS_MESERO = ["entregado", "cancelado"];
 
 function normalizarTexto(valor) {
   return String(valor || "").trim().toLowerCase();
@@ -655,11 +655,14 @@ async function actualizarEstadoPedido(req, res) {
     if (!ESTADOS_VALIDOS.includes(estado)) {
       return res.status(400).json({ ok: false, message: `Estado invalido. Usa: ${ESTADOS_VALIDOS.join(", ")}` });
     }
+    if (estado === "pagado") {
+      return res.status(403).json({ ok: false, message: "El estado de pago se gestiona desde Caja y no puede asignarse manualmente al pedido." });
+    }
     if (rol === "cocina" && !ESTADOS_COCINA.includes(estado)) {
       return res.status(403).json({ ok: false, message: "Cocina solo puede cambiar a preparando, listo o cancelado" });
     }
     if (rol === "mesero" && !ESTADOS_MESERO.includes(estado)) {
-      return res.status(403).json({ ok: false, message: "Mesero solo puede entregar, pagar o cancelar" });
+      return res.status(403).json({ ok: false, message: "Mesero solo puede entregar o cancelar. Los pagos pertenecen al rol Cajero." });
     }
 
     await client.query("BEGIN");

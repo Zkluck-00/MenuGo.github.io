@@ -504,7 +504,7 @@ function crearPedidoMesero() {
     estado: "Pendiente",
     estadoPedido: "Pendiente",
     estadoPago: "Pendiente",
-    metodoPago: "Cobro por mesero",
+    metodoPago: "Cobro por cajero",
     fecha: ahora.toLocaleDateString("es-PE"),
     hora: ahora.toLocaleTimeString("es-PE", {
       hour: "2-digit",
