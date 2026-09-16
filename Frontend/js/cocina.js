@@ -2,6 +2,7 @@ if (window.MENUGO_PERSONAL_BLOQUEADO) { throw new Error('Acceso bloqueado. Inici
 const API_BASE = window.MENUGO_API || "http://localhost:4000/api";
 let pedidos = [];
 let filtroActual = "todos";
+let sonidoActivo = true;
 
 function normalizar(valor) {
   return String(valor || "").trim().toLowerCase();
@@ -109,7 +110,6 @@ async function mostrarPedidos() {
         <p class="mt-2 text-slate-500">Cocina solo ve pedidos pendientes, en preparacion o listos.</p>
       </div>`;
     
-    // Actualizar subtítulo con hora incluso si está vacío
     const subtituloVacio = document.querySelector("header p");
     if (subtituloVacio) {
         subtituloVacio.textContent = `Pedidos activos en cola: 0 | Última actualización: ${horaActual}`;
@@ -119,7 +119,6 @@ async function mostrarPedidos() {
 
   contenedor.innerHTML = pedidosFiltrados.map(renderPedido).join("");
 
-  // Actualizar subtítulo con el total de pedidos activos y marca de tiempo
   const subtitulo = document.querySelector("header p");
   if (subtitulo) {
       subtitulo.textContent = `Pedidos activos en cola: ${pedidosFiltrados.length} | Última actualización: ${horaActual}`;
@@ -157,7 +156,7 @@ function renderPedido(pedido) {
       <div class="mb-4 flex items-start justify-between gap-3">
         <div>
           <p class="text-sm font-black uppercase tracking-wide text-slate-500">Pedido</p>
-         <h2 class="text-2xl font-black text-slate-950 cursor-pointer hover:text-orange-600 transition" title="Copiar código" onclick="navigator.clipboard.writeText('${escapeHtml(pedido.codigo || `PED-${pedido.id_pedido || pedido.id}`)}'); mostrarNotificacion('Código copiado al portapapeles', 'success');">${escapeHtml(pedido.codigo || `PED-${pedido.id_pedido || pedido.id}`)}</h2>
+          <h2 class="text-2xl font-black text-slate-950 cursor-pointer hover:text-orange-600 transition" title="Copiar código" onclick="navigator.clipboard.writeText('${escapeHtml(pedido.codigo || `PED-${pedido.id_pedido || pedido.id}`)}'); mostrarNotificacion('Código copiado al portapapeles', 'success');">${escapeHtml(pedido.codigo || `PED-${pedido.id_pedido || pedido.id}`)}</h2>
           <p class="mt-1 text-sm font-semibold text-slate-500">${escapeHtml(pedido.fecha || "")} ${escapeHtml(pedido.hora || "")}</p>
         </div>
         <span class="rounded-full px-3 py-1.5 text-sm font-black ${colorEstado(estado)}">${escapeHtml(estado)}</span>
@@ -199,20 +198,55 @@ function recargarCocina() {
   mostrarPedidos();
 }
 
+function toggleSonido() {
+  sonidoActivo = !sonidoActivo;
+  const btn = document.getElementById("btn-sonido");
+  if (btn) {
+    btn.innerHTML = sonidoActivo ? "🔊 Sonido ON" : "🔇 Sonido OFF";
+    btn.className = sonidoActivo 
+      ? "flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-2xl font-bold text-xs shadow-sm transition transform active:scale-95"
+      : "flex items-center gap-2 bg-red-50 hover:bg-red-100 text-red-700 px-4 py-3 rounded-2xl font-bold text-xs shadow-sm transition transform active:scale-95";
+  }
+  mostrarNotificacion(sonidoActivo ? "Alerta sonora activada" : "Alerta sonora desactivada", "success");
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen().catch((err) => {
+      alert(`No se pudo activar pantalla completa: ${err.message}`);
+    });
+  } else {
+    if (document.exitFullscreen) {
+      document.exitFullscreen();
+    }
+  }
+}
+
+document.addEventListener("fullscreenchange", () => {
+  const btn = document.getElementById("btn-fullscreen");
+  if (!btn) return;
+  if (document.fullscreenElement) {
+    btn.innerHTML = "🗗 Salir";
+    btn.className = "flex items-center gap-2 bg-orange-100 hover:bg-orange-200 text-orange-800 px-4 py-3 rounded-2xl font-bold text-xs shadow-sm transition transform active:scale-95";
+  } else {
+    btn.innerHTML = "🖥️ Pantalla Completa";
+    btn.className = "flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-2xl font-bold text-xs shadow-sm transition transform active:scale-95";
+  }
+});
+
 function reproducirAlertaSonora() {
+  if (!sonidoActivo) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain);
     gain.connect(ctx.destination);
-    osc.frequency.value = 587.33; // Tono agradable (Nota D5)
+    osc.frequency.value = 587.33; 
     gain.gain.setValueAtTime(0.15, ctx.currentTime);
     osc.start();
     osc.stop(ctx.currentTime + 0.2);
-  } catch (e) {
-    // Evita errores si el navegador bloquea audio
-  }
+  } catch (e) {}
 }
 
 function iniciarEscuchaEventosCocina() {
