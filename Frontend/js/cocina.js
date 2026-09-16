@@ -106,10 +106,22 @@ async function mostrarPedidos() {
         <h2 class="text-2xl font-black text-slate-800">No hay pedidos para mostrar</h2>
         <p class="mt-2 text-slate-500">Cocina solo ve pedidos pendientes, en preparacion o listos.</p>
       </div>`;
+    
+    // Actualizar subtítulo incluso si está vacío
+    const subtituloVacio = document.querySelector("header p");
+    if (subtituloVacio) {
+        subtituloVacio.textContent = `Pedidos activos en cola: 0`;
+    }
     return;
   }
 
   contenedor.innerHTML = pedidosFiltrados.map(renderPedido).join("");
+
+  // Actualizar subtítulo con el total de pedidos activos
+  const subtitulo = document.querySelector("header p");
+  if (subtitulo) {
+      subtitulo.textContent = `Pedidos activos en cola: ${pedidosFiltrados.length}`;
+  }
 }
 
 function renderPedido(pedido) {
