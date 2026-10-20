@@ -80,7 +80,12 @@ async function apiCaja(path, options = {}) {
     window.location.replace('login.html?access=required');
     throw new Error('Sesion vencida.');
   }
-  if (!response.ok || data.ok === false) throw new Error(data.message || data.error || 'Error de servidor');
+  if (!response.ok || data.ok === false) {
+    const error = new Error(data.message || data.error || 'Error de servidor');
+    error.status = response.status;
+    error.code = data.code || null;
+    throw error;
+  }
   return data;
 }
 
@@ -230,6 +235,9 @@ function renderPagosRecientesCaja() {
 }
 
 function abrirCobroCaja(idCuenta) {
+  if (intentoPagoCajaPendiente && intentoPagoCajaPendiente.idCuenta !== String(idCuenta)) {
+    return alert('Primero confirma el resultado del cobro anterior antes de abrir otra cuenta.');
+  }
   const cuenta = cuentasCaja.find((c) => String(c.id_cuenta) === String(idCuenta));
   if (!cuenta) return alert('Cuenta no encontrada.');
   const items = productosCobrablesCaja(cuenta);
@@ -262,6 +270,10 @@ function abrirCobroCaja(idCuenta) {
 }
 
 function cerrarCobroCaja() {
+  if (pagoCajaEnCurso || intentoPagoCajaPendiente) {
+    alert('Antes de cerrar, confirma el resultado del cobro pendiente. Reintenta la misma operacion o consulta el historial.');
+    return;
+  }
   document.getElementById('panel-cobro')?.classList.add('hidden');
   const contenido = document.getElementById('contenido-cobro');
   if (contenido) contenido.innerHTML = '';
@@ -319,6 +331,37 @@ function evaluarEfectivoCaja(recibido, total) {
 }
 
 let pagoCajaEnCurso = false;
+let intentoPagoCajaPendiente = null;
+
+// Se genera una sola clave por intento logico; no en cada pulsacion.
+// Requiere un origen seguro (HTTPS o localhost) para obtener aleatoriedad fuerte.
+function nuevaClaveIdempotenciaCaja() {
+  const cripto = window.crypto;
+  if (typeof cripto?.randomUUID === 'function') return cripto.randomUUID();
+  if (typeof cripto?.getRandomValues === 'function') {
+    const bytes = new Uint8Array(16);
+    cripto.getRandomValues(bytes);
+    return `menugo-${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
+  }
+  throw new Error('No se pudo generar la clave segura de pago. Abre MenuGo desde HTTPS o localhost.');
+}
+
+function prepararIntentoPagoCaja(idCuenta, datos) {
+  const firma = JSON.stringify(datos);
+  if (intentoPagoCajaPendiente) {
+    if (intentoPagoCajaPendiente.idCuenta !== String(idCuenta) || intentoPagoCajaPendiente.firma !== firma) {
+      throw new Error('Hay un cobro cuyo resultado no se pudo confirmar. Reintenta con los mismos datos antes de cambiarlos o consulta el historial de pagos.');
+    }
+    return intentoPagoCajaPendiente;
+  }
+  intentoPagoCajaPendiente = {
+    idCuenta: String(idCuenta),
+    firma,
+    datos: { ...datos, idempotency_key: nuevaClaveIdempotenciaCaja() },
+  };
+  return intentoPagoCajaPendiente;
+}
+
 
 // Los billetes son atajos de importe recibido, NO agregan productos a la cuenta.
 function seleccionarMontoEfectivoCaja(monto) {
@@ -454,34 +497,55 @@ async function registrarPagoCaja(event, idCuenta) {
   const razon = document.getElementById('razon-social-caja')?.value.trim() || '';
   if (tipo === 'factura' && !razon) return alert('Ingresa la razon social.');
 
+  // Se congelan los datos y se reutiliza la MISMA clave en reintentos.
+  // No se genera una clave nueva cuando la red pierde la respuesta.
+  let intento;
+  try {
+    intento = prepararIntentoPagoCaja(idCuenta, {
+      metodo_pago: metodo,
+      monto_recibido: metodo === 'Efectivo' ? montoRecibido : undefined,
+      detalles: items,
+      tipo_comprobante: tipo,
+      dni: tipo === 'boleta' ? documento : undefined,
+      ruc: tipo === 'factura' ? documento : undefined,
+      razon_social: tipo === 'factura' ? razon : undefined,
+      pagado_por: document.getElementById('pagado-por-caja')?.value || 'Cliente',
+      mesa_pagadora: document.getElementById('mesa-pagadora-caja')?.value || null,
+      referencia: referencia || null
+    });
+  } catch (error) {
+    return alert(error.message);
+  }
+
   pagoCajaEnCurso = true;
   actualizarBotonCobroCaja();
+  let cobroConfirmado = false;
   try {
     const registro = await apiCaja(`/cajero/cuentas/${encodeURIComponent(idCuenta)}/pagos`, {
       method: 'POST',
-      body: JSON.stringify({
-        metodo_pago: metodo,
-        monto_recibido: metodo === 'Efectivo' ? montoRecibido : undefined,
-        detalles: items,
-        tipo_comprobante: tipo,
-        dni: tipo === 'boleta' ? documento : undefined,
-        ruc: tipo === 'factura' ? documento : undefined,
-        razon_social: tipo === 'factura' ? razon : undefined,
-        pagado_por: document.getElementById('pagado-por-caja')?.value || 'Cliente',
-        mesa_pagadora: document.getElementById('mesa-pagadora-caja')?.value || null,
-        referencia: referencia || null
-      })
+      body: JSON.stringify(intento.datos)
     });
-    cerrarCobroCaja();
+    cobroConfirmado = true;
+    intentoPagoCajaPendiente = null;
     const vueltoConfirmado = Number(registro.data?.vuelto || 0);
-    mostrarNotificacionCaja(metodo === 'Efectivo'
-      ? `Pago registrado correctamente. Vuelto confirmado: ${solesCaja(vueltoConfirmado)}.`
-      : 'Pago registrado correctamente por Caja.');
+    const mensaje = registro.repetido
+      ? `Pago ya registrado (#${registro.data?.id_pago}). No se duplico el cobro.`
+      : metodo === 'Efectivo'
+        ? `Pago registrado correctamente. Vuelto confirmado: ${solesCaja(vueltoConfirmado)}.`
+        : 'Pago registrado correctamente por Caja.';
+    mostrarNotificacionCaja(mensaje);
     await recargarCaja();
   } catch (error) {
-    alert(`No se pudo registrar el pago: ${error.message}`);
+    // HTTP 400/404: el backend rechazo la operacion sin registrarla.
+    // Sin respuesta (red) o HTTP 409: resultado incierto, conservar clave y datos.
+    if ([400, 404].includes(error.status)) intentoPagoCajaPendiente = null;
+    const aviso = !error.status
+      ? 'No se pudo confirmar si el cobro se registro. Reintenta SIN cambiar los datos para reutilizar la misma clave; no abras un cobro nuevo.'
+      : `No se pudo registrar el pago: ${error.message}`;
+    alert(aviso);
   } finally {
     pagoCajaEnCurso = false;
+    if (cobroConfirmado) cerrarCobroCaja();
     actualizarBotonCobroCaja();
   }
 }

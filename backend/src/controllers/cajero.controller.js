@@ -1,4 +1,5 @@
 const { cajeroPool } = require('../config/db');
+const { createHash } = require('node:crypto');
 const { mapMetodoPago } = require('./pedidos.controller');
 const eventEmitter = require('../utils/eventEmitter');
 
@@ -389,22 +390,156 @@ function validarComprobante(body) {
   return { tipo, dni, ruc: null, razon_social: null };
 }
 
+// COMMIT 08: la clave identifica una operacion logica de pago, no cada clic.
+// Se envia desde caja.js y debe cumplir la restriccion SQL del commit 07.
+function validarClaveIdempotenciaCaja(body) {
+  const clave = body.idempotency_key;
+  if (typeof clave !== 'string' || clave.length < 16 || clave.length > 100 ||
+      clave !== clave.trim() || /[\u0000-\u001f\u007f]/.test(clave)) {
+    throw new Error('El cobro requiere una clave de idempotencia valida (16 a 100 caracteres). Actualiza la pantalla de Caja.');
+  }
+  return clave;
+}
+
+// Canoniza todos los datos que definen el cobro. El monto y los subtotales
+// enviados por el navegador NO forman parte de la huella: se calculan en BD.
+function datosCanonicosPagoCaja(body, idCuenta, idCajero, metodo, referencia, comprobante, idsSolicitados) {
+  const efectivo = validarEfectivoRecibidoCaja(body, metodo, 0);
+  return {
+    id_cuenta: idCuenta,
+    id_cajero: idCajero,
+    metodo_pago: metodo,
+    referencia,
+    productos: idsSolicitados.length ? [...idsSolicitados].sort((a, b) => a - b) : null,
+    monto_recibido: efectivo.monto_recibido,
+    tipo_comprobante: comprobante.tipo,
+    dni: comprobante.dni,
+    ruc: comprobante.ruc,
+    razon_social: comprobante.razon_social,
+    pagado_por: String(body.pagado_por || 'Cliente').trim() || 'Cliente',
+    mesa_pagadora: body.mesa_pagadora == null || body.mesa_pagadora === '' ? null : String(body.mesa_pagadora),
+    notas: body.notas == null || body.notas === '' ? 'Pago registrado por Caja' : String(body.notas),
+  };
+}
+
+function huellaPagoCaja(datos) {
+  return createHash('sha256').update(JSON.stringify(datos)).digest('hex');
+}
+
+// La misma consulta sirve al pago nuevo y a una recuperacion tras perder
+// la respuesta HTTP. Siempre mostramos el saldo actualmente registrado.
+async function saldoPendienteGrupoCaja(client, idGrupoMesa) {
+  const saldo = await client.query(
+    `SELECT COALESCE(SUM(pendiente), 0) AS saldo
+     FROM (
+       SELECT dp.id_detalle_producto,
+              dp.subtotal - COALESCE(SUM(CASE WHEN pg.estado_pago = 'pagado' THEN dpg.monto ELSE 0 END), 0) AS pendiente
+       FROM detalle_producto dp
+       INNER JOIN pedidos p ON p.id_pedido = dp.id_pedido
+       LEFT JOIN detalle_pago dpg ON dpg.id_detalle_producto = dp.id_detalle_producto
+       LEFT JOIN pagos pg ON pg.id_pago = dpg.id_pago
+       WHERE p.id_grupo_mesa = $1 AND p.estado <> 'cancelado'
+       GROUP BY dp.id_detalle_producto
+     ) x
+     WHERE pendiente > 0`,
+    [idGrupoMesa]
+  );
+  return numero(saldo.rows[0]?.saldo);
+}
+
+async function buscarPagoIdempotenteCaja(client, clave) {
+  const resultado = await client.query(
+    `SELECT pg.*, c.id_grupo_mesa,
+            co.tipo_comprobante AS comprobante_tipo,
+            co.dni AS comprobante_dni,
+            co.ruc AS comprobante_ruc,
+            co.razon_social AS comprobante_razon_social
+       FROM pagos pg
+       INNER JOIN cuentas c ON c.id_cuenta = pg.id_cuenta
+       LEFT JOIN comprobantes co ON co.id_pago = pg.id_pago
+      WHERE pg.idempotency_key = $1
+      LIMIT 1`,
+    [clave]
+  );
+  return resultado.rows[0] || null;
+}
+
 async function registrarPago(req, res) {
-  const client = await cajeroPool.connect();
+  let client;
   try {
+    client = await cajeroPool.connect();
     await asegurarEsquemaCaja(client);
     const body = req.body || {};
     const idCuenta = Number(req.params.id || body.id_cuenta);
+    const idCajero = Number(req.personal?.id_trabajador);
     if (!Number.isSafeInteger(idCuenta) || idCuenta <= 0) {
       return res.status(400).json({ ok: false, message: 'Cuenta invalida.' });
     }
+    if (!Number.isSafeInteger(idCajero) || idCajero <= 0) {
+      return res.status(401).json({ ok: false, message: 'Sesion de cajero invalida.' });
+    }
 
-    const comprobante = validarComprobante(body);
-    const metodo = validarMetodoPagoCaja(body.metodo_pago ?? body.metodoPago);
-    const referencia = validarReferenciaPagoCaja(body, metodo);
-    const idsSolicitados = validarDetallesSolicitadosCaja(body);
+    // Diferenciamos errores de validacion de fallos de red/BD. Ante un error
+    // incierto el cliente debe conservar su clave, nunca iniciar otro cobro.
+    let comprobante, metodo, referencia, idsSolicitados, clave, canonicos;
+    try {
+      comprobante = validarComprobante(body);
+      metodo = validarMetodoPagoCaja(body.metodo_pago ?? body.metodoPago);
+      referencia = validarReferenciaPagoCaja(body, metodo);
+      idsSolicitados = validarDetallesSolicitadosCaja(body);
+      clave = validarClaveIdempotenciaCaja(body);
+      canonicos = datosCanonicosPagoCaja(
+        body, idCuenta, idCajero, metodo, referencia, comprobante, idsSolicitados
+      );
+    } catch (error) {
+      error.status = 400;
+      throw error;
+    }
+    const huella = huellaPagoCaja(canonicos);
 
     await client.query('BEGIN');
+    // PostgreSQL libera este bloqueo al COMMIT/ROLLBACK. Dos solicitudes
+    // simultaneas con la misma clave se serializan antes de consultar pagos.
+    // El indice UNIQUE del commit 07 es la defensa definitiva en la BD.
+    await client.query(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))',
+      [clave]
+    );
+
+    const previo = await buscarPagoIdempotenteCaja(client, clave);
+    if (previo) {
+      const coincide = previo.idempotency_hash === huella &&
+        Number(previo.id_cuenta) === idCuenta && Number(previo.id_cajero) === idCajero;
+      if (!coincide || previo.estado_pago !== 'pagado') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          ok: false,
+          code: 'IDEMPOTENCY_CONFLICT',
+          message: 'Esta clave ya se utilizo en otra operacion. Revisa el historial antes de intentar un nuevo cobro.',
+        });
+      }
+
+      const saldoPendiente = await saldoPendienteGrupoCaja(client, previo.id_grupo_mesa);
+      await client.query('COMMIT');
+      // Recuperamos el mismo pago; nunca repetimos INSERTs ni eventos.
+      return res.status(200).json({
+        ok: true,
+        repetido: true,
+        message: 'El pago ya estaba registrado. No se creo un segundo cobro.',
+        data: {
+          ...previo,
+          saldo_pendiente: saldoPendiente,
+          cajero: req.personal.nombre,
+          comprobante: {
+            tipo: previo.comprobante_tipo,
+            dni: previo.comprobante_dni,
+            ruc: previo.comprobante_ruc,
+            razon_social: previo.comprobante_razon_social,
+          },
+        },
+      });
+    }
+
     const { cuenta, detalles } = await obtenerPendientesCuenta(client, idCuenta);
     if (!cuenta) {
       await client.query('ROLLBACK');
@@ -441,10 +576,8 @@ async function registrarPago(req, res) {
       }
     }
 
-    // Usar centavos enteros aun si se cobran varios productos con centimos.
     const montoCentavos = seleccionados.reduce(
-      (suma, detalle) => suma + centavosPagoCaja(detalle.pendiente, 'Saldo del producto'),
-      0
+      (suma, detalle) => suma + centavosPagoCaja(detalle.pendiente, 'Saldo del producto'), 0
     );
     if (montoCentavos <= 0) {
       await client.query('ROLLBACK');
@@ -456,26 +589,35 @@ async function registrarPago(req, res) {
     }
 
     const monto = importePagoCaja(montoCentavos);
-    const efectivo = validarEfectivoRecibidoCaja(body, metodo, montoCentavos);
+    let efectivo;
+    try {
+      efectivo = validarEfectivoRecibidoCaja(body, metodo, montoCentavos);
+    } catch (error) {
+      error.status = 400;
+      throw error;
+    }
     const esTotal = seleccionados.length === detalles.length;
     const pago = await client.query(
       `INSERT INTO pagos
         (id_cuenta, metodo_pago, monto, pagado_por, estado_pago, referencia, tipo_pago,
-         mesa_pagadora, notas, id_cajero, monto_recibido, vuelto)
-       VALUES ($1, $2, $3, $4, 'pagado', $5, $6, $7, $8, $9, $10, $11)
+         mesa_pagadora, notas, id_cajero, monto_recibido, vuelto,
+         idempotency_key, idempotency_hash)
+       VALUES ($1, $2, $3, $4, 'pagado', $5, $6, $7, $8, $9, $10, $11, $12, $13)
        RETURNING *`,
       [
         idCuenta,
         metodo,
         monto,
-        String(req.body.pagado_por || 'Cliente').trim() || 'Cliente',
+        canonicos.pagado_por,
         referencia,
         esTotal ? 'total' : 'parcial',
-        req.body.mesa_pagadora || null,
-        req.body.notas || 'Pago registrado por Caja',
-        req.personal.id_trabajador,
+        canonicos.mesa_pagadora,
+        canonicos.notas,
+        idCajero,
         efectivo.monto_recibido,
         efectivo.vuelto,
+        clave,
+        huella,
       ]
     );
 
@@ -492,23 +634,7 @@ async function registrarPago(req, res) {
       [pago.rows[0].id_pago, comprobante.tipo, comprobante.dni, comprobante.ruc, comprobante.razon_social]
     );
 
-    const saldo = await client.query(
-      `SELECT COALESCE(SUM(pendiente), 0) AS saldo
-       FROM (
-         SELECT dp.id_detalle_producto,
-                dp.subtotal - COALESCE(SUM(CASE WHEN pg.estado_pago = 'pagado' THEN dpg.monto ELSE 0 END), 0) AS pendiente
-         FROM detalle_producto dp
-         INNER JOIN pedidos p ON p.id_pedido = dp.id_pedido
-         LEFT JOIN detalle_pago dpg ON dpg.id_detalle_producto = dp.id_detalle_producto
-         LEFT JOIN pagos pg ON pg.id_pago = dpg.id_pago
-         WHERE p.id_grupo_mesa = $1 AND p.estado <> 'cancelado'
-         GROUP BY dp.id_detalle_producto
-       ) x
-       WHERE pendiente > 0`,
-      [cuenta.id_grupo_mesa]
-    );
-
-    const saldoPendiente = numero(saldo.rows[0]?.saldo);
+    const saldoPendiente = await saldoPendienteGrupoCaja(client, cuenta.id_grupo_mesa);
     if (saldoPendiente <= 0) {
       await client.query(`UPDATE cuentas SET estado = 'pagada' WHERE id_cuenta = $1`, [idCuenta]);
       await client.query(
@@ -529,13 +655,30 @@ async function registrarPago(req, res) {
     };
     eventEmitter.emitPagoRegistrado(respuesta);
     eventEmitter.emitCuentaActualizada({ id_cuenta: idCuenta, id_grupo_mesa: cuenta.id_grupo_mesa, saldo_pendiente: saldoPendiente });
-    res.status(201).json({ ok: true, message: 'Pago registrado por Caja.', data: respuesta });
+    res.status(201).json({ ok: true, repetido: false, message: 'Pago registrado por Caja.', data: respuesta });
   } catch (error) {
-    try { await client.query('ROLLBACK'); } catch (_) {}
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+    }
     console.error('Error al registrar pago en caja:', error);
-    res.status(400).json({ ok: false, message: error.message || 'No se pudo registrar el pago.' });
+    if (error.code === '23505' && error.constraint === 'ux_pagos_idempotency_key') {
+      return res.status(409).json({
+        ok: false, code: 'IDEMPOTENCY_CONFLICT',
+        message: 'Ya existe un pago con esa clave. Reintenta la misma operacion y consulta el historial.',
+      });
+    }
+    if (error.status === 400) {
+      return res.status(400).json({ ok: false, message: error.message });
+    }
+    // Nunca responder 400 por un COMMIT de resultado incierto: el navegador
+    // conservara la clave para recuperar la operacion en otro intento.
+    return res.status(500).json({
+      ok: false,
+      code: 'PAGO_NO_CONFIRMADO',
+      message: 'No se pudo confirmar el resultado del cobro. Reintenta con la misma clave o consulta el historial.',
+    });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 }
 

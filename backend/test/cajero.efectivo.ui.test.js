@@ -214,3 +214,4 @@ test('si el servidor rechaza el pago vuelve a habilitar el boton para corregirlo
   assert.equal(elementos['boton-registrar-caja'].textContent, 'Registrar cobro');
   assert.match(alertas[0], /ya se pago/i);
 });
+  
