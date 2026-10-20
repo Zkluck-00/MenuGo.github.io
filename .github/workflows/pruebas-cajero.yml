@@ -1,0 +1,37 @@
+name: Pruebas automatizadas del cajero
+
+# Cada push a la rama de trabajo o pull request hacia main ejecuta pruebas.
+on:
+  push:
+    branches:
+      - feature/cajero-mejoras
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  pruebas-cajero:
+    name: Validar JavaScript y pruebas de caja
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validar sintaxis del backend
+        run: node --check backend/src/controllers/cajero.controller.js
+
+      - name: Validar sintaxis del frontend
+        run: node --check Frontend/js/caja.js
+
+      - name: Ejecutar pruebas automatizadas del cajero
+        run: node --test backend/test/*.test.cjs
