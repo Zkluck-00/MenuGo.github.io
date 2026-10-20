@@ -202,42 +202,65 @@ async function recalcularCuenta(client, idGrupoMesa) {
   );
 }
 
-async function resolverProducto(client, item) {
-  const codigo = String(item.codigo_producto || "").trim();
-  const nombre = item.nombre || "Producto sin nombre";
-  const precio = Number(item.precio || item.precio_unitario || 0);
+// Commit 10: los precios del navegador nunca participan en el total de un pedido.
+// PostgreSQL almacena precio NUMERIC(10,2). Convertimos a centimos de manera
+// explicita para que 0.10 + 0.20 sea exactamente 0.30.
+function precioCatalogoCentavos(precio) {
+  const match = String(precio ?? "").trim().match(/^(\d{1,8})(?:\.(\d{1,2}))?$/);
+  if (!match) throw new Error("El precio del producto en la base de datos es invalido.");
+  const centavos = Number(match[1]) * 100 + Number((match[2] || "").padEnd(2, "0"));
+  if (!Number.isSafeInteger(centavos) || centavos <= 0) {
+    throw new Error("El precio del producto en la base de datos es invalido.");
+  }
+  return centavos;
+}
 
+function importePedidoCentavos(centavos) {
+  return (centavos / 100).toFixed(2);
+}
+
+function cantidadPedidoValida(cantidadOriginal) {
+  // Se acepta que los clientes antiguos omitan cantidad (1 unidad).
+  const valor = cantidadOriginal === undefined ? 1 : cantidadOriginal;
+  if ((typeof valor !== "number" && typeof valor !== "string") ||
+      !/^\d+$/.test(String(valor).trim())) {
+    throw new Error("La cantidad debe ser un entero positivo.");
+  }
+  const cantidad = Number(valor);
+  if (!Number.isSafeInteger(cantidad) || cantidad < 1 || cantidad > 999) {
+    throw new Error("La cantidad debe estar entre 1 y 999 unidades.");
+  }
+  return cantidad;
+}
+
+async function resolverProducto(client, item, tipoPedido) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    throw new Error("Producto invalido en el pedido.");
+  }
+  const codigo = String(item.codigo_producto ?? item.id ?? "").trim();
   if (!codigo) {
-    throw new Error(`Producto "${nombre}" no tiene codigo_producto. No se puede procesar.`);
+    throw new Error("El producto no tiene codigo_producto.");
   }
 
-  if (item.tipo_producto === "bebida" || esBebida(item)) {
-    const producto = await client.query(
-      `SELECT id_bebida AS id, precio, activo, 'bebida' AS tipo
-       FROM bebidas
-       WHERE codigo_bebida = $1
-       LIMIT 1`,
-      [codigo],
-    );
+  const esProductoBebida = normalizarTexto(item.tipo_producto) === "bebida" || esBebida(item);
+  const consulta = esProductoBebida
+    ? `SELECT id_bebida AS id, precio, activo, 'bebida' AS tipo
+       FROM bebidas WHERE codigo_bebida = $1 LIMIT 1`
+    : `SELECT id_plato AS id, precio, activo, disponible_llevar, 'plato' AS tipo
+       FROM platos WHERE codigo_plato = $1 LIMIT 1`;
 
-    if (producto.rows.length === 0) {
-      throw new Error(`Bebida con codigo "${codigo}" no encontrada en la base de datos.`);
-    }
-    return producto.rows[0];
+  const { rows } = await client.query(consulta, [codigo]);
+  if (!rows.length) throw new Error(`Producto con codigo "${codigo}" no encontrado en la base de datos.`);
+
+  const producto = rows[0];
+  if (producto.activo !== true) {
+    throw new Error(`Producto "${codigo}" no esta activo en el menu.`);
   }
-
-  const producto = await client.query(
-    `SELECT id_plato AS id, precio, activo, 'plato' AS tipo
-     FROM platos
-     WHERE codigo_plato = $1
-     LIMIT 1`,
-    [codigo],
-  );
-
-  if (producto.rows.length === 0) {
-    throw new Error(`Plato con codigo "${codigo}" no encontrado en la base de datos.`);
+  if (tipoPedido === "llevar" && producto.tipo === "plato" && producto.disponible_llevar !== true) {
+    throw new Error(`Producto "${codigo}" no esta habilitado para llevar.`);
   }
-  return producto.rows[0];
+  // Esta es la unica fuente de precio permitida: platos.precio / bebidas.precio.
+  return { ...producto, precioCentavos: precioCatalogoCentavos(producto.precio) };
 }
 
 async function registrarPagoInicialSiAplica(client, pedido, body, total) {
@@ -547,17 +570,27 @@ async function crearPedido(req, res) {
     let idGrupoMesa = tipoPedido === "mesa" ? await asegurarGrupoMesa(client, numeroMesa) : null;
     let idCuenta = idGrupoMesa ? await crearCuentaSiNoExiste(client, idGrupoMesa) : null;
 
-    let total = 0;
+    let totalCentavos = 0;
     const productosResueltos = [];
 
     for (const item of items) {
-      const producto = await resolverProducto(client, item);
-      const cantidad = Number(item.cantidad || 1);
-      const precioUnitario = Number(item.precio || item.precio_unitario || producto.precio);
-      if (cantidad <= 0 || precioUnitario <= 0) throw new Error("Cantidad o precio invalido");  
-      total += cantidad * precioUnitario;
-      productosResueltos.push({ item, producto, cantidad, precioUnitario, subtotal: cantidad * precioUnitario });
+      const producto = await resolverProducto(client, item, tipoPedido);
+      const cantidad = cantidadPedidoValida(item.cantidad);
+      const subtotalCentavos = cantidad * producto.precioCentavos;
+      if (!Number.isSafeInteger(subtotalCentavos) || subtotalCentavos > 9_999_999_999) {
+        throw new Error("El subtotal del producto supera el limite permitido.");
+      }
+      totalCentavos += subtotalCentavos;
+      if (!Number.isSafeInteger(totalCentavos) || totalCentavos > 999_999_999_999) {
+        throw new Error("El total del pedido supera el limite permitido.");
+      }
+      productosResueltos.push({
+        item, producto, cantidad,
+        precioUnitario: importePedidoCentavos(producto.precioCentavos),
+        subtotal: importePedidoCentavos(subtotalCentavos),
+      });
     }
+    const total = importePedidoCentavos(totalCentavos);
 
     const pedidoResult = await client.query(
       `INSERT INTO pedidos (id_grupo_mesa, id_usuario, tipo_pedido, nombre_cliente, telefono_llevar, estado, registrado_por)
