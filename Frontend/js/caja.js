@@ -252,7 +252,7 @@ function abrirCobroCaja(idCuenta) {
       <label class="mt-3 block"><span class="text-xs font-black uppercase text-slate-500">Mesa/persona pagadora (opcional)</span><input id="mesa-pagadora-caja" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold" placeholder="Ej. Mesa 4 o Invitado" /></label>
       <label class="mt-3 block"><span class="text-xs font-black uppercase text-slate-500">Comprobante</span><select id="comprobante-caja" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold" onchange="actualizarComprobanteCaja()"><option value="boleta">Boleta</option><option value="factura">Factura</option></select></label>
       <div id="datos-comprobante-caja" class="mt-3"></div>
-      <button class="mt-5 w-full rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white hover:bg-orange-600">Registrar cobro</button>
+      <button id="boton-registrar-caja" type="submit" disabled class="mt-5 w-full rounded-2xl bg-orange-500 px-4 py-3 text-sm font-black text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:text-slate-600">Registrar cobro</button>
     </form>
   </div>`;
   panel.classList.remove('hidden');
@@ -271,8 +271,16 @@ function itemsCobroCaja() {
   return Array.from(document.querySelectorAll('.item-cobro-caja:checked')).map((i) => ({ id_detalle_producto: Number(i.dataset.id), monto: Number(i.dataset.monto) }));
 }
 
-function totalSeleccionadoCaja() { return itemsCobroCaja().reduce((s, i) => s + Number(i.monto || 0), 0); }
-function seleccionarTodosCaja() { document.querySelectorAll('.item-cobro-caja').forEach((i) => { i.checked = true; }); actualizarTotalCobroCaja(); }
+// Suma en centimos: 0.10 + 0.20 debe terminar como 0.30, nunca 0.30000000004.
+function totalSeleccionadoCaja() {
+  return itemsCobroCaja().reduce((suma, item) => suma + Math.round(Number(item.monto) * 100), 0) / 100;
+}
+
+function seleccionarTodosCaja() {
+  document.querySelectorAll('.item-cobro-caja').forEach((i) => { i.checked = true; });
+  actualizarTotalCobroCaja();
+}
+
 function actualizarTotalCobroCaja() {
   const total = totalSeleccionadoCaja();
   const el = document.getElementById('total-cobro-caja');
@@ -280,25 +288,130 @@ function actualizarTotalCobroCaja() {
   actualizarVueltoCaja();
 }
 
+// Misma precision monetaria que el backend del commit 05 (NUMERIC(12,2)).
+function centavosEfectivoCaja(valor) {
+  if (typeof valor !== 'string' && typeof valor !== 'number') return null;
+  const texto = String(valor).trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(texto)) return null;
+  const [soles, decimales = ''] = texto.split('.');
+  const centavos = Number(soles) * 100 + Number(decimales.padEnd(2, '0'));
+  return Number.isSafeInteger(centavos) && centavos <= 999999999999 ? centavos : null;
+}
+
+// Calcula el estado del formulario sin depender de HTML o acceso a la BD.
+function evaluarEfectivoCaja(recibido, total) {
+  const totalCentavos = Math.round(Number(total) * 100);
+  const texto = String(recibido ?? '').trim();
+  if (!Number.isSafeInteger(totalCentavos) || totalCentavos <= 0) {
+    return { valido: false, estado: 'sin-productos', mensaje: 'Selecciona productos para cobrar.', valor: 0, mensajeError: 'Selecciona al menos un producto pendiente.' };
+  }
+  if (!texto) {
+    return { valido: false, estado: 'vacio', mensaje: 'Ingresa el dinero que recibiste del cliente.', valor: 0, mensajeError: 'El efectivo recibido debe cubrir el total seleccionado.' };
+  }
+  const recibidoCentavos = centavosEfectivoCaja(texto);
+  if (recibidoCentavos === null) {
+    return { valido: false, estado: 'invalido', mensaje: 'Escribe un monto valido con un maximo de 2 decimales.', valor: 0, mensajeError: 'Ingresa un monto recibido valido (hasta dos decimales).' };
+  }
+  if (recibidoCentavos < totalCentavos) {
+    return { valido: false, estado: 'insuficiente', mensaje: 'Falta efectivo para cubrir el cobro.', valor: (totalCentavos - recibidoCentavos) / 100, mensajeError: 'El efectivo recibido debe cubrir el total seleccionado.' };
+  }
+  return { valido: true, estado: 'correcto', mensaje: recibidoCentavos === totalCentavos ? 'Pago exacto: no se necesita vuelto.' : 'Verifica el vuelto antes de registrar el cobro.', valor: (recibidoCentavos - totalCentavos) / 100 };
+}
+
+let pagoCajaEnCurso = false;
+
+// Los billetes son atajos de importe recibido, NO agregan productos a la cuenta.
+function seleccionarMontoEfectivoCaja(monto) {
+  const input = document.getElementById('monto-recibido-caja');
+  if (!input || pagoCajaEnCurso) return;
+  const valor = monto === 'exacto' ? totalSeleccionadoCaja() : Number(monto);
+  if (!Number.isFinite(valor) || valor < 0) return;
+  input.value = valor.toFixed(2);
+  actualizarVueltoCaja();
+  if (typeof input.focus === 'function') input.focus();
+}
+
+function actualizarBilletesCaja() {
+  const totalCentavos = Math.round(totalSeleccionadoCaja() * 100);
+  document.querySelectorAll('[data-billete-caja]').forEach((boton) => {
+    const valor = centavosEfectivoCaja(boton.dataset.billeteCaja);
+    boton.disabled = pagoCajaEnCurso || totalCentavos <= 0 || valor === null || valor < totalCentavos;
+    boton.title = boton.disabled && !pagoCajaEnCurso ? 'Este billete no cubre el total seleccionado.' : '';
+  });
+}
+
+function actualizarBotonCobroCaja() {
+  const boton = document.getElementById('boton-registrar-caja');
+  if (!boton) return;
+  const metodo = document.getElementById('metodo-cobro-caja')?.value || 'Efectivo';
+  const total = totalSeleccionadoCaja();
+  const efectivoValido = metodo !== 'Efectivo' || evaluarEfectivoCaja(
+    document.getElementById('monto-recibido-caja')?.value, total
+  ).valido;
+  boton.disabled = pagoCajaEnCurso || total <= 0 || !efectivoValido;
+  boton.textContent = pagoCajaEnCurso ? 'Registrando pago...' : 'Registrar cobro';
+}
+
 function actualizarCamposPagoCaja() {
   const metodo = document.getElementById('metodo-cobro-caja')?.value || 'Efectivo';
   const box = document.getElementById('campos-pago-caja');
   if (!box) return;
   if (metodo === 'Efectivo') {
-    box.innerHTML = `<div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-3"><label class="block"><span class="text-xs font-black uppercase text-emerald-700">Monto recibido</span><input id="monto-recibido-caja" type="number" min="0" step="0.01" class="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 font-bold" oninput="actualizarVueltoCaja()"></label><p class="mt-2 text-sm font-bold text-emerald-800">Vuelto estimado: <span id="vuelto-caja">S/ 0.00</span></p></div>`;
-    const input = document.getElementById('monto-recibido-caja');
-    if (input) input.value = totalSeleccionadoCaja().toFixed(2);
+    box.innerHTML = `<section id="panel-efectivo-caja" class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4" aria-labelledby="titulo-efectivo-caja">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h4 id="titulo-efectivo-caja" class="font-black text-emerald-900">Cobro en efectivo</h4>
+        <span class="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800">Monto del cliente</span>
+      </div>
+      <label for="monto-recibido-caja" class="block text-sm font-black text-emerald-800">Efectivo recibido (S/)</label>
+      <input id="monto-recibido-caja" type="number" min="0" step="0.01" inputmode="decimal" placeholder="0.00" autocomplete="off" aria-describedby="ayuda-efectivo-caja estado-efectivo-caja" class="mt-1 w-full rounded-xl border border-emerald-300 bg-white px-4 py-3 text-xl font-black text-slate-950 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-200" oninput="actualizarVueltoCaja()" />
+      <p id="ayuda-efectivo-caja" class="mt-1 text-xs font-medium text-emerald-800">Ingresa el monto realmente entregado. No se asume un pago exacto.</p>
+      <p class="mt-4 text-xs font-black uppercase tracking-wide text-emerald-900">Importes rapidos</p>
+      <div class="mt-2 grid grid-cols-3 gap-2 sm:grid-cols-5">
+        <button type="button" onclick="seleccionarMontoEfectivoCaja('exacto')" class="rounded-xl border border-emerald-300 bg-white px-2 py-2.5 text-xs font-black text-emerald-900 hover:bg-emerald-100">Exacto</button>
+        ${[20, 50, 100, 200].map((billete) => `<button type="button" data-billete-caja="${billete}" onclick="seleccionarMontoEfectivoCaja(${billete})" class="rounded-xl border border-emerald-300 bg-white px-2 py-2.5 text-xs font-black text-emerald-900 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-40">S/ ${billete}</button>`).join('')}
+      </div>
+      <div id="resumen-efectivo-caja" class="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+        <p id="etiqueta-vuelto-caja" class="text-xs font-black uppercase tracking-wide text-slate-600">Vuelto estimado</p>
+        <p id="vuelto-caja" class="mt-1 text-3xl font-black text-slate-900">S/ 0.00</p>
+        <p id="estado-efectivo-caja" role="status" aria-live="polite" class="mt-1 text-xs font-semibold text-slate-600">Ingresa el efectivo recibido.</p>
+      </div>
+    </section>`;
+    // Evita suponer que el cliente entrego exactamente el importe del pedido.
     actualizarVueltoCaja();
   } else {
-    box.innerHTML = `<div class="rounded-2xl border border-purple-200 bg-purple-50 p-3"><label class="block"><span class="text-xs font-black uppercase text-purple-700">Codigo/referencia de aprobacion</span><input id="referencia-pago-caja" maxlength="30" class="mt-1 w-full rounded-xl border border-purple-200 bg-white px-3 py-2 font-bold" placeholder="Codigo de operacion"></label></div>`;
+    box.innerHTML = `<div class="rounded-2xl border border-purple-200 bg-purple-50 p-3"><label class="block"><span class="text-xs font-black uppercase text-purple-700">Codigo/referencia de aprobacion</span><input id="referencia-pago-caja" maxlength="30" class="mt-1 w-full rounded-xl border border-purple-200 bg-white px-3 py-2 font-bold" placeholder="Codigo de operacion"></label><p class="mt-2 text-xs text-purple-800">La referencia se registra manualmente; no verifica el pago con el banco.</p></div>`;
   }
+  actualizarBotonCobroCaja();
 }
 
 function actualizarVueltoCaja() {
   const input = document.getElementById('monto-recibido-caja');
-  const span = document.getElementById('vuelto-caja');
-  if (!input || !span) return;
-  span.textContent = solesCaja(Math.max(Number(input.value || 0) - totalSeleccionadoCaja(), 0));
+  const etiqueta = document.getElementById('etiqueta-vuelto-caja');
+  const monto = document.getElementById('vuelto-caja');
+  const estado = document.getElementById('estado-efectivo-caja');
+  const resumen = document.getElementById('resumen-efectivo-caja');
+  if (!input || !etiqueta || !monto || !estado || !resumen) {
+    actualizarBotonCobroCaja();
+    return;
+  }
+  const calculo = evaluarEfectivoCaja(input.value, totalSeleccionadoCaja());
+  etiqueta.textContent = calculo.estado === 'insuficiente' ? 'Dinero faltante' : 'Vuelto estimado';
+  monto.textContent = solesCaja(calculo.valor);
+  estado.textContent = calculo.mensaje;
+  const alerta = calculo.estado === 'insuficiente' || calculo.estado === 'invalido';
+  if (typeof input.setAttribute === 'function') input.setAttribute('aria-invalid', alerta ? 'true' : 'false');
+  if (calculo.valido) {
+    resumen.className = 'mt-4 rounded-xl border border-emerald-300 bg-emerald-100 p-3';
+    monto.className = 'mt-1 text-3xl font-black text-emerald-900';
+  } else if (alerta) {
+    resumen.className = 'mt-4 rounded-xl border border-red-300 bg-red-50 p-3';
+    monto.className = 'mt-1 text-3xl font-black text-red-800';
+  } else {
+    resumen.className = 'mt-4 rounded-xl border border-slate-200 bg-white p-3';
+    monto.className = 'mt-1 text-3xl font-black text-slate-900';
+  }
+  actualizarBilletesCaja();
+  actualizarBotonCobroCaja();
 }
 
 function actualizarComprobanteCaja() {
@@ -317,16 +430,17 @@ async function registrarPagoCaja(event, idCuenta) {
   const total = totalSeleccionadoCaja();
   if (!items.length || total <= 0) return alert('Selecciona al menos un producto pendiente.');
 
+  if (pagoCajaEnCurso) return; // Evita reenvios por doble clic mientras responde el servidor.
   const metodo = document.getElementById('metodo-cobro-caja')?.value || 'Efectivo';
   let referencia = '';
   let montoRecibido;
   if (metodo === 'Efectivo') {
-    // Se envia la cadena original para no perder los centimos por redondeos.
-    montoRecibido = document.getElementById('monto-recibido-caja')?.value.trim();
-    const recibido = Number(montoRecibido);
-    if (!montoRecibido || !Number.isFinite(recibido) ||
-        Math.round(recibido * 100) < Math.round(total * 100)) {
-      return alert('El efectivo recibido debe cubrir el total seleccionado.');
+    // No confiar en el vuelto del navegador; el backend hace el calculo definitivo.
+    montoRecibido = document.getElementById('monto-recibido-caja')?.value?.trim() || '';
+    const validacion = evaluarEfectivoCaja(montoRecibido, total);
+    if (!validacion.valido) {
+      actualizarVueltoCaja();
+      return alert(validacion.mensajeError);
     }
   } else {
     referencia = document.getElementById('referencia-pago-caja')?.value.trim() || '';
@@ -340,6 +454,8 @@ async function registrarPagoCaja(event, idCuenta) {
   const razon = document.getElementById('razon-social-caja')?.value.trim() || '';
   if (tipo === 'factura' && !razon) return alert('Ingresa la razon social.');
 
+  pagoCajaEnCurso = true;
+  actualizarBotonCobroCaja();
   try {
     const registro = await apiCaja(`/cajero/cuentas/${encodeURIComponent(idCuenta)}/pagos`, {
       method: 'POST',
@@ -364,6 +480,9 @@ async function registrarPagoCaja(event, idCuenta) {
     await recargarCaja();
   } catch (error) {
     alert(`No se pudo registrar el pago: ${error.message}`);
+  } finally {
+    pagoCajaEnCurso = false;
+    actualizarBotonCobroCaja();
   }
 }
 
