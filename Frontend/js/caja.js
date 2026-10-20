@@ -285,7 +285,7 @@ function actualizarCamposPagoCaja() {
   const box = document.getElementById('campos-pago-caja');
   if (!box) return;
   if (metodo === 'Efectivo') {
-    box.innerHTML = `<div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-3"><label class="block"><span class="text-xs font-black uppercase text-emerald-700">Monto recibido</span><input id="monto-recibido-caja" type="number" min="0" step="0.10" class="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 font-bold" oninput="actualizarVueltoCaja()"></label><p class="mt-2 text-sm font-bold text-emerald-800">Vuelto: <span id="vuelto-caja">S/ 0.00</span></p></div>`;
+    box.innerHTML = `<div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-3"><label class="block"><span class="text-xs font-black uppercase text-emerald-700">Monto recibido</span><input id="monto-recibido-caja" type="number" min="0" step="0.01" class="mt-1 w-full rounded-xl border border-emerald-200 bg-white px-3 py-2 font-bold" oninput="actualizarVueltoCaja()"></label><p class="mt-2 text-sm font-bold text-emerald-800">Vuelto estimado: <span id="vuelto-caja">S/ 0.00</span></p></div>`;
     const input = document.getElementById('monto-recibido-caja');
     if (input) input.value = totalSeleccionadoCaja().toFixed(2);
     actualizarVueltoCaja();
@@ -319,9 +319,15 @@ async function registrarPagoCaja(event, idCuenta) {
 
   const metodo = document.getElementById('metodo-cobro-caja')?.value || 'Efectivo';
   let referencia = '';
+  let montoRecibido;
   if (metodo === 'Efectivo') {
-    const recibido = Number(document.getElementById('monto-recibido-caja')?.value || 0);
-    if (recibido < total) return alert('El monto recibido no puede ser menor al total seleccionado.');
+    // Se envia la cadena original para no perder los centimos por redondeos.
+    montoRecibido = document.getElementById('monto-recibido-caja')?.value.trim();
+    const recibido = Number(montoRecibido);
+    if (!montoRecibido || !Number.isFinite(recibido) ||
+        Math.round(recibido * 100) < Math.round(total * 100)) {
+      return alert('El efectivo recibido debe cubrir el total seleccionado.');
+    }
   } else {
     referencia = document.getElementById('referencia-pago-caja')?.value.trim() || '';
     if (!referencia) return alert('Ingresa la referencia o codigo de aprobacion del pago.');
@@ -335,10 +341,11 @@ async function registrarPagoCaja(event, idCuenta) {
   if (tipo === 'factura' && !razon) return alert('Ingresa la razon social.');
 
   try {
-    await apiCaja(`/cajero/cuentas/${encodeURIComponent(idCuenta)}/pagos`, {
+    const registro = await apiCaja(`/cajero/cuentas/${encodeURIComponent(idCuenta)}/pagos`, {
       method: 'POST',
       body: JSON.stringify({
         metodo_pago: metodo,
+        monto_recibido: metodo === 'Efectivo' ? montoRecibido : undefined,
         detalles: items,
         tipo_comprobante: tipo,
         dni: tipo === 'boleta' ? documento : undefined,
@@ -350,7 +357,10 @@ async function registrarPagoCaja(event, idCuenta) {
       })
     });
     cerrarCobroCaja();
-    mostrarNotificacionCaja('Pago registrado correctamente por Caja.');
+    const vueltoConfirmado = Number(registro.data?.vuelto || 0);
+    mostrarNotificacionCaja(metodo === 'Efectivo'
+      ? `Pago registrado correctamente. Vuelto confirmado: ${solesCaja(vueltoConfirmado)}.`
+      : 'Pago registrado correctamente por Caja.');
     await recargarCaja();
   } catch (error) {
     alert(`No se pudo registrar el pago: ${error.message}`);

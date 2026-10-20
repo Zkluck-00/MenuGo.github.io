@@ -71,6 +71,53 @@ function validarDetallesSolicitadosCaja(body) {
   return ids;
 }
 
+// Los importes de PostgreSQL son NUMERIC(12,2). Trabajamos en centavos
+// enteros para evitar errores de coma flotante (ej. 0.1 + 0.2).
+const MAX_CENTAVOS_PAGO_CAJA = 999999999999; // NUMERIC(12,2)
+
+function centavosPagoCaja(valor, etiqueta) {
+  if (typeof valor !== 'string' && typeof valor !== 'number') {
+    throw new Error(`${etiqueta} debe ser un importe valido, con hasta dos decimales.`);
+  }
+  const texto = String(valor).trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(texto)) {
+    throw new Error(`${etiqueta} debe ser un importe valido, con hasta dos decimales.`);
+  }
+  const [unidades, decimales = ''] = texto.split('.');
+  const total = Number(unidades) * 100 + Number(decimales.padEnd(2, '0'));
+  if (!Number.isSafeInteger(total) || total > MAX_CENTAVOS_PAGO_CAJA) {
+    throw new Error(`${etiqueta} supera el importe maximo permitido.`);
+  }
+  return total;
+}
+
+function importePagoCaja(centavos) {
+  return `${Math.floor(centavos / 100)}.${String(centavos % 100).padStart(2, '0')}`;
+}
+
+// La cuenta y su monto se calculan con datos de PostgreSQL, no con los
+// subtotales enviados por el navegador. El servidor decide el vuelto final.
+function validarEfectivoRecibidoCaja(body, metodo, montoCentavos) {
+  const recibido = body.monto_recibido ?? body.montoRecibido;
+  if (metodo !== 'efectivo') {
+    if (recibido !== null && recibido !== undefined) {
+      throw new Error('El monto recibido solo corresponde a pagos en efectivo.');
+    }
+    return { monto_recibido: null, vuelto: '0.00' };
+  }
+  if (recibido === null || recibido === undefined || recibido === '') {
+    throw new Error('Debes ingresar el efectivo recibido antes de registrar el cobro.');
+  }
+  const recibidoCentavos = centavosPagoCaja(recibido, 'El efectivo recibido');
+  if (recibidoCentavos < montoCentavos) {
+    throw new Error('El efectivo recibido no alcanza para cubrir el monto seleccionado.');
+  }
+  return {
+    monto_recibido: importePagoCaja(recibidoCentavos),
+    vuelto: importePagoCaja(recibidoCentavos - montoCentavos),
+  };
+}
+
 let esquemaCajaListo = false;
 
 async function asegurarEsquemaCaja(client = cajeroPool) {
@@ -394,17 +441,28 @@ async function registrarPago(req, res) {
       }
     }
 
-    const monto = seleccionados.reduce((s, d) => s + numero(d.pendiente), 0);
-    if (monto <= 0) {
+    // Usar centavos enteros aun si se cobran varios productos con centimos.
+    const montoCentavos = seleccionados.reduce(
+      (suma, detalle) => suma + centavosPagoCaja(detalle.pendiente, 'Saldo del producto'),
+      0
+    );
+    if (montoCentavos <= 0) {
       await client.query('ROLLBACK');
       return res.status(400).json({ ok: false, message: 'No existe monto pendiente para registrar.' });
     }
+    if (montoCentavos > MAX_CENTAVOS_PAGO_CAJA) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ ok: false, message: 'El monto del pago supera el limite permitido.' });
+    }
 
+    const monto = importePagoCaja(montoCentavos);
+    const efectivo = validarEfectivoRecibidoCaja(body, metodo, montoCentavos);
     const esTotal = seleccionados.length === detalles.length;
     const pago = await client.query(
       `INSERT INTO pagos
-        (id_cuenta, metodo_pago, monto, pagado_por, estado_pago, referencia, tipo_pago, mesa_pagadora, notas, id_cajero)
-       VALUES ($1, $2, $3, $4, 'pagado', $5, $6, $7, $8, $9)
+        (id_cuenta, metodo_pago, monto, pagado_por, estado_pago, referencia, tipo_pago,
+         mesa_pagadora, notas, id_cajero, monto_recibido, vuelto)
+       VALUES ($1, $2, $3, $4, 'pagado', $5, $6, $7, $8, $9, $10, $11)
        RETURNING *`,
       [
         idCuenta,
@@ -416,13 +474,15 @@ async function registrarPago(req, res) {
         req.body.mesa_pagadora || null,
         req.body.notas || 'Pago registrado por Caja',
         req.personal.id_trabajador,
+        efectivo.monto_recibido,
+        efectivo.vuelto,
       ]
     );
 
     for (const item of seleccionados) {
       await client.query(
         `INSERT INTO detalle_pago (id_pago, id_detalle_producto, monto) VALUES ($1, $2, $3)`,
-        [pago.rows[0].id_pago, item.id_detalle_producto, numero(item.pendiente)]
+        [pago.rows[0].id_pago, item.id_detalle_producto, item.pendiente]
       );
     }
 
