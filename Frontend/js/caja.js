@@ -1,3 +1,4 @@
+
 if (window.MENUGO_PERSONAL_BLOQUEADO) throw new Error('Acceso bloqueado. Inicia sesion como Cajero.');
 
 const API_CAJA = window.MENUGO_API || 'http://localhost:4000/api';
@@ -10,6 +11,13 @@ function solesCaja(valor) { return `S/ ${Number(valor || 0).toFixed(2)}`; }
 function normalizarCaja(valor) { return String(valor || '').trim().toLowerCase(); }
 function escapeCaja(valor) { return String(valor ?? '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
 function fechaCaja(valor) { return valor ? new Date(valor).toLocaleString('es-PE') : '-'; }
+
+// Una cuenta puede cobrarse parcialmente si al menos un producto esta entregado.
+function productosCobrablesCaja(cuenta) {
+  return (cuenta.detalles || []).filter((detalle) =>
+    detalle.puede_pagarse && Number(detalle.monto_pendiente || 0) > 0
+  );
+}
 
 async function apiCaja(path, options = {}) {
   const response = await fetch(`${API_CAJA}${path}`, {
@@ -92,7 +100,7 @@ function cambiarFiltroCuentas(filtro, actualizarBotones = true) {
 function renderContenidoCaja() {
   if (filtroCaja === 'cobradas') return renderPagosRecientesCaja();
   let lista = [...cuentasCaja];
-  if (filtroCaja === 'listas') lista = lista.filter((c) => c.lista_para_cobro);
+  if (filtroCaja === 'listas') lista = lista.filter((c) => productosCobrablesCaja(c).length > 0);
   if (filtroCaja === 'solicitadas') lista = lista.filter((c) => c.solicitud_cuenta);
   if (filtroCaja === 'llevar') lista = lista.filter((c) => c.es_llevar);
   renderCuentasCaja(lista);
@@ -108,6 +116,9 @@ function renderCuentasCaja(lista) {
 
   contenedor.innerHTML = lista.map((cuenta) => {
     const noListos = (cuenta.detalles || []).filter((d) => !d.puede_pagarse).length;
+    const puedeCobrar = productosCobrablesCaja(cuenta).length > 0;
+    const estadoCobro = !puedeCobrar ? 'Esperando entrega' : noListos ? 'Cobro parcial disponible' : 'Lista para cobrar';
+    const estiloEstado = !puedeCobrar ? 'bg-amber-100 text-amber-700' : noListos ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700';
     const solicitud = cuenta.solicitud_cuenta;
     return `<article class="rounded-3xl border ${solicitud ? 'border-orange-300' : 'border-slate-200'} bg-white p-5 shadow-lg shadow-slate-900/5">
       <div class="flex items-start justify-between gap-3">
@@ -116,7 +127,7 @@ function renderCuentasCaja(lista) {
           <h2 class="mt-1 text-2xl font-black text-slate-950">${escapeCaja(cuenta.etiqueta)}</h2>
           <p class="mt-1 text-sm font-semibold text-slate-500">${cuenta.mesas?.length ? cuenta.mesas.map((m) => `Mesa ${m}`).join(', ') : 'Sin mesa asignada'}</p>
         </div>
-        <span class="rounded-full ${cuenta.lista_para_cobro ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'} px-3 py-1.5 text-xs font-black">${cuenta.lista_para_cobro ? 'Lista para cobrar' : 'Esperando entrega'}</span>
+        <span class="rounded-full ${estiloEstado} px-3 py-1.5 text-xs font-black">${estadoCobro}</span>
       </div>
       ${solicitud ? `<div class="mt-4 rounded-2xl border border-orange-200 bg-orange-50 p-3"><p class="text-sm font-black text-orange-800">Cliente solicito la cuenta</p><p class="mt-1 text-xs font-semibold text-orange-700">${escapeCaja(solicitud.nota || '')} · ${fechaCaja(solicitud.fecha_solicitud)}</p></div>` : ''}
       <div class="mt-4 grid grid-cols-3 gap-2 text-center">
@@ -126,7 +137,7 @@ function renderCuentasCaja(lista) {
       </div>
       ${noListos ? `<p class="mt-3 text-xs font-bold text-amber-700">${noListos} producto(s) aun no estan habilitados para cobro.</p>` : ''}
       <div class="mt-4 flex gap-2">
-        <button ${cuenta.lista_para_cobro ? '' : 'disabled'} onclick="abrirCobroCaja('${cuenta.id_cuenta}')" class="flex-1 rounded-2xl ${cuenta.lista_para_cobro ? 'bg-slate-950 hover:bg-slate-800' : 'cursor-not-allowed bg-slate-300'} px-4 py-3 text-sm font-black text-white">${cuenta.lista_para_cobro ? 'Cobrar en caja' : 'Esperar entrega'}</button>
+        <button ${puedeCobrar ? '' : 'disabled'} onclick="abrirCobroCaja('${cuenta.id_cuenta}')" class="flex-1 rounded-2xl ${puedeCobrar ? 'bg-slate-950 hover:bg-slate-800' : 'cursor-not-allowed bg-slate-300'} px-4 py-3 text-sm font-black text-white">${puedeCobrar ? (noListos ? 'Cobrar productos entregados' : 'Cobrar en caja') : 'Esperar entrega'}</button>
         ${solicitud ? `<button onclick="atenderSolicitudCaja('${solicitud.id_solicitud}')" class="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-black text-orange-700 hover:bg-orange-100">Atender</button>` : ''}
       </div>
     </article>`;
@@ -150,19 +161,21 @@ function renderPagosRecientesCaja() {
 
 function abrirCobroCaja(idCuenta) {
   const cuenta = cuentasCaja.find((c) => String(c.id_cuenta) === String(idCuenta));
-  if (!cuenta || !cuenta.lista_para_cobro) return alert('La cuenta aun no esta lista para cobrar.');
+  if (!cuenta) return alert('Cuenta no encontrada.');
+  const items = productosCobrablesCaja(cuenta);
+  if (!items.length) return alert('Esta cuenta aun no tiene productos disponibles para cobrar.');
+  const totalDisponible = items.reduce((suma, item) => suma + Number(item.monto_pendiente), 0);
   const panel = document.getElementById('panel-cobro');
   const contenido = document.getElementById('contenido-cobro');
-  const items = (cuenta.detalles || []).filter((d) => d.puede_pagarse && Number(d.monto_pendiente || 0) > 0);
 
-  contenido.innerHTML = `<div class="border-b border-slate-200 p-5"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-black uppercase tracking-wide text-orange-600">Cobro por Caja</p><h2 class="mt-1 text-3xl font-black">${escapeCaja(cuenta.etiqueta)}</h2><p class="mt-1 text-sm font-semibold text-slate-500">Saldo: ${solesCaja(cuenta.total_pendiente)}</p></div><button onclick="cerrarCobroCaja()" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-black">Cerrar</button></div></div>
+  contenido.innerHTML = `<div class="border-b border-slate-200 p-5"><div class="flex items-start justify-between gap-3"><div><p class="text-xs font-black uppercase tracking-wide text-orange-600">Cobro por Caja</p><h2 class="mt-1 text-3xl font-black">${escapeCaja(cuenta.etiqueta)}</h2><p class="mt-1 text-sm font-semibold text-slate-500">Saldo de la cuenta: ${solesCaja(cuenta.total_pendiente)} · Disponible para cobrar: ${solesCaja(totalDisponible)}</p></div><button onclick="cerrarCobroCaja()" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-black">Cerrar</button></div></div>
   <div class="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[1fr_390px]">
     <section class="rounded-3xl border border-slate-200 p-4">
       <div class="mb-3 flex items-center justify-between gap-3"><h3 class="font-black">Productos a cobrar</h3><button onclick="seleccionarTodosCaja()" type="button" class="text-xs font-black text-orange-600">Seleccionar todos</button></div>
       <div>${items.map((item) => `<label class="flex items-start gap-3 border-b border-slate-100 py-3"><input type="checkbox" class="item-cobro-caja mt-1 h-5 w-5" data-id="${item.id_detalle_producto}" data-monto="${item.monto_pendiente}" checked onchange="actualizarTotalCobroCaja()"><span class="flex-1"><strong>${escapeCaja(item.nombre)}</strong><br><small class="text-slate-500">${escapeCaja(item.observacion || `Pedido #${item.id_pedido}`)}</small></span><strong>${solesCaja(item.monto_pendiente)}</strong></label>`).join('')}</div>
     </section>
     <form onsubmit="registrarPagoCaja(event, '${cuenta.id_cuenta}')" class="rounded-3xl bg-slate-50 p-4">
-      <div class="rounded-2xl bg-white p-4 text-center"><p class="text-xs font-black uppercase text-slate-500">Total seleccionado</p><p id="total-cobro-caja" class="mt-1 text-3xl font-black text-slate-950">${solesCaja(cuenta.total_pendiente)}</p></div>
+      <div class="rounded-2xl bg-white p-4 text-center"><p class="text-xs font-black uppercase text-slate-500">Total seleccionado</p><p id="total-cobro-caja" class="mt-1 text-3xl font-black text-slate-950">${solesCaja(totalDisponible)}</p></div>
       <label class="mt-4 block"><span class="text-xs font-black uppercase text-slate-500">Metodo de pago</span><select id="metodo-cobro-caja" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold" onchange="actualizarCamposPagoCaja()"><option value="Efectivo">Efectivo</option><option value="Yape">Yape</option><option value="Plin">Plin</option><option value="Tarjeta credito">Tarjeta credito</option><option value="Tarjeta debito">Tarjeta debito</option></select></label>
       <div id="campos-pago-caja" class="mt-3"></div>
       <label class="mt-3 block"><span class="text-xs font-black uppercase text-slate-500">Pagado por</span><input id="pagado-por-caja" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold" value="Cliente" /></label>
