@@ -1,4 +1,3 @@
-
 if (window.MENUGO_PERSONAL_BLOQUEADO) throw new Error('Acceso bloqueado. Inicia sesion como Cajero.');
 
 const API_CAJA = window.MENUGO_API || 'http://localhost:4000/api';
@@ -17,6 +16,57 @@ function productosCobrablesCaja(cuenta) {
   return (cuenta.detalles || []).filter((detalle) =>
     detalle.puede_pagarse && Number(detalle.monto_pendiente || 0) > 0
   );
+}
+
+// Los indicadores del dashboard y las tarjetas usan la misma clasificacion.
+function clasificarCuentaCaja(cuenta) {
+  const cobrables = productosCobrablesCaja(cuenta).length;
+  const bloqueados = (cuenta.detalles || []).filter((detalle) =>
+    !detalle.puede_pagarse && Number(detalle.monto_pendiente || 0) > 0
+  ).length;
+
+  return {
+    cobrables,
+    bloqueados,
+    tipo: cobrables === 0 ? 'esperando' : bloqueados > 0 ? 'parcial' : 'lista'
+  };
+}
+
+function calcularIndicadoresCaja(cuentas, resumen) {
+  const estados = { lista: 0, parcial: 0, esperando: 0 };
+  for (const cuenta of cuentas) {
+    estados[clasificarCuentaCaja(cuenta).tipo] += 1;
+  }
+
+  const porMetodo = resumen.por_metodo || {};
+  const digital = ['yape', 'plin', 'tarjeta_credito', 'tarjeta_debito']
+    .reduce((total, metodo) => total + Number(porMetodo[metodo] || 0), 0);
+
+  return {
+    cuentas: cuentas.length,
+    listas: estados.lista,
+    parciales: estados.parcial,
+    esperando: estados.esperando,
+    solicitudes: cuentas.filter((cuenta) => Boolean(cuenta.solicitud_cuenta)).length,
+    porCobrar: cuentas.reduce((total, cuenta) => total + Number(cuenta.total_pendiente || 0), 0),
+    pagosHoy: Number(resumen.pagos_hoy_cajero || 0),
+    efectivo: Number(porMetodo.efectivo || 0),
+    digital,
+    totalHoy: Number(resumen.total_hoy_cajero || 0)
+  };
+}
+
+function actualizarEstadoActualizacionCaja(correcto) {
+  const estado = document.getElementById('estado-actualizacion-caja');
+  if (!estado) return;
+  if (correcto) {
+    const hora = new Date().toLocaleTimeString('es-PE');
+    estado.textContent = `Actualizado a las ${hora}`;
+    estado.className = 'text-xs font-bold text-emerald-700';
+  } else {
+    estado.textContent = 'No se pudo actualizar. Revisa tu conexion.';
+    estado.className = 'text-xs font-bold text-red-700';
+  }
 }
 
 async function apiCaja(path, options = {}) {
@@ -45,7 +95,12 @@ async function cargarDatosCaja() {
   pagosCaja = pagos.data || [];
 }
 
+let recargaCajaEnCurso = false;
+
 async function recargarCaja() {
+  // Evita que el temporizador y los eventos en vivo dupliquen las peticiones.
+  if (recargaCajaEnCurso) return;
+  recargaCajaEnCurso = true;
   const contenedor = document.getElementById('contenedor-cuentas');
   if (contenedor) contenedor.innerHTML = '<div class="col-span-full rounded-3xl bg-white p-8 text-center font-bold text-slate-500">Cargando informacion de caja...</div>';
   try {
@@ -53,19 +108,34 @@ async function recargarCaja() {
     renderEstadisticasCaja();
     renderAlertasCaja();
     cambiarFiltroCuentas(filtroCaja, false);
+    actualizarEstadoActualizacionCaja(true);
   } catch (error) {
+    actualizarEstadoActualizacionCaja(false);
     if (contenedor) contenedor.innerHTML = `<div class="col-span-full rounded-3xl border border-red-200 bg-red-50 p-8 text-center text-red-700"><h2 class="text-xl font-black">No se pudo cargar Caja</h2><p class="mt-2 text-sm font-semibold">${escapeCaja(error.message)}</p></div>`;
+  } finally {
+    recargaCajaEnCurso = false;
   }
 }
 
 function renderEstadisticasCaja() {
-  const metodos = resumenCaja.por_metodo || {};
-  const digital = Number(metodos.yape || 0) + Number(metodos.plin || 0) + Number(metodos.tarjeta_credito || 0) + Number(metodos.tarjeta_debito || 0);
-  document.getElementById('stat-pendientes').textContent = resumenCaja.cuentas_listas || 0;
-  document.getElementById('stat-cobradas').textContent = resumenCaja.pagos_hoy_cajero || 0;
-  document.getElementById('stat-efectivo').textContent = solesCaja(metodos.efectivo || 0);
-  document.getElementById('stat-tarjeta').textContent = solesCaja(digital);
-  document.getElementById('stat-total').textContent = solesCaja(resumenCaja.total_hoy_cajero || 0);
+  const datos = calcularIndicadoresCaja(cuentasCaja, resumenCaja);
+  const valores = {
+    'stat-cuentas': datos.cuentas,
+    'stat-listas': datos.listas,
+    'stat-parciales': datos.parciales,
+    'stat-espera': datos.esperando,
+    'stat-solicitudes': datos.solicitudes,
+    'stat-por-cobrar': solesCaja(datos.porCobrar),
+    'stat-cobradas': datos.pagosHoy,
+    'stat-efectivo': solesCaja(datos.efectivo),
+    'stat-tarjeta': solesCaja(datos.digital),
+    'stat-total': solesCaja(datos.totalHoy)
+  };
+
+  for (const [id, valor] of Object.entries(valores)) {
+    const elemento = document.getElementById(id);
+    if (elemento) elemento.textContent = valor;
+  }
 }
 
 function renderAlertasCaja() {
@@ -78,7 +148,7 @@ function renderAlertasCaja() {
     return;
   }
   box.classList.remove('hidden');
-  box.innerHTML = `<div class="flex flex-wrap items-center justify-between gap-3"><div><p class="font-black text-orange-900">${solicitadas.length} solicitud(es) de cuenta esperan en Caja</p><p class="mt-1 text-sm font-semibold text-orange-800">Prioriza las mesas que ya tienen todos sus productos entregados.</p></div><button onclick="cambiarFiltroCuentas('solicitadas')" class="rounded-xl bg-orange-600 px-4 py-2 text-sm font-black text-white">Ver solicitudes</button></div>`;
+  box.innerHTML = `<div class="flex flex-wrap items-center justify-between gap-3"><div><p class="font-black text-orange-900">${solicitadas.length} solicitud(es) de cuenta esperan en Caja</p><p class="mt-1 text-sm font-semibold text-orange-800">Puedes cobrar productos entregados aunque otros sigan en cocina.</p></div><button onclick="cambiarFiltroCuentas('solicitadas')" class="rounded-xl bg-orange-600 px-4 py-2 text-sm font-black text-white">Ver solicitudes</button></div>`;
 }
 
 function cambiarFiltroCuentas(filtro, actualizarBotones = true) {
@@ -115,10 +185,10 @@ function renderCuentasCaja(lista) {
   }
 
   contenedor.innerHTML = lista.map((cuenta) => {
-    const noListos = (cuenta.detalles || []).filter((d) => !d.puede_pagarse).length;
-    const puedeCobrar = productosCobrablesCaja(cuenta).length > 0;
-    const estadoCobro = !puedeCobrar ? 'Esperando entrega' : noListos ? 'Cobro parcial disponible' : 'Lista para cobrar';
-    const estiloEstado = !puedeCobrar ? 'bg-amber-100 text-amber-700' : noListos ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700';
+    const { cobrables, bloqueados: noListos, tipo } = clasificarCuentaCaja(cuenta);
+    const puedeCobrar = cobrables > 0;
+    const estadoCobro = tipo === 'esperando' ? 'Esperando entrega' : tipo === 'parcial' ? 'Cobro parcial disponible' : 'Lista para cobrar';
+    const estiloEstado = tipo === 'esperando' ? 'bg-amber-100 text-amber-700' : tipo === 'parcial' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700';
     const solicitud = cuenta.solicitud_cuenta;
     return `<article class="rounded-3xl border ${solicitud ? 'border-orange-300' : 'border-slate-200'} bg-white p-5 shadow-lg shadow-slate-900/5">
       <div class="flex items-start justify-between gap-3">
