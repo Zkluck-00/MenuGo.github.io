@@ -10,6 +10,67 @@ function numero(valor) {
   return Number(valor || 0);
 }
 
+// El cajero solo puede registrar los metodos admitidos por la BD.
+// La normalizacion admite las etiquetas que ya envia Frontend/js/caja.js.
+const METODOS_CAJA = Object.freeze({
+  efectivo: 'efectivo',
+  yape: 'yape',
+  plin: 'plin',
+  'tarjeta credito': 'tarjeta_credito',
+  'tarjeta de credito': 'tarjeta_credito',
+  'tarjeta debito': 'tarjeta_debito',
+  'tarjeta de debito': 'tarjeta_debito',
+});
+
+function validarMetodoPagoCaja(valor) {
+  if (typeof valor !== 'string') {
+    throw new Error('Debes seleccionar un metodo de pago valido.');
+  }
+  const clave = valor.trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_\s-]+/g, ' ');
+  const metodo = Object.prototype.hasOwnProperty.call(METODOS_CAJA, clave)
+    ? METODOS_CAJA[clave]
+    : null;
+  if (!metodo) {
+    throw new Error('Metodo de pago invalido. Elige efectivo, Yape, Plin, tarjeta de credito o tarjeta de debito.');
+  }
+  return metodo;
+}
+
+// La referencia es una constancia introducida por el cajero, NO una
+// verificacion automatica con Yape, Plin o un procesador de tarjetas.
+function validarReferenciaPagoCaja(body, metodo) {
+  if (metodo === 'efectivo') return null;
+  const valor = body.referencia ?? body.codigo_aprobacion;
+  if (typeof valor !== 'string') {
+    throw new Error('Los pagos digitales y con tarjeta requieren una referencia de operacion.');
+  }
+  const referencia = valor.trim();
+  if (referencia.length < 3 || referencia.length > 100 || /[\u0000-\u001f\u007f]/.test(referencia)) {
+    throw new Error('Ingresa una referencia de operacion valida (3 a 100 caracteres, sin saltos de linea).');
+  }
+  return referencia;
+}
+
+// Si el cliente envia una seleccion, no aceptamos una lista vacia ni IDs
+// invalidos: eso impediria convertir por accidente el cobro en uno total.
+function validarDetallesSolicitadosCaja(body) {
+  const seleccion = body.detalles ?? body.items;
+  if (seleccion === undefined) return [];
+  if (!Array.isArray(seleccion) || seleccion.length === 0) {
+    throw new Error('Selecciona al menos un producto para cobrar.');
+  }
+  const ids = seleccion.map((detalle) => Number(detalle?.id_detalle_producto ?? detalle?.id));
+  if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+    throw new Error('La seleccion contiene identificadores de producto invalidos.');
+  }
+  if (new Set(ids).size !== ids.length) {
+    throw new Error('La seleccion contiene productos duplicados.');
+  }
+  return ids;
+}
+
 let esquemaCajaListo = false;
 
 async function asegurarEsquemaCaja(client = cajeroPool) {
@@ -285,14 +346,16 @@ async function registrarPago(req, res) {
   const client = await cajeroPool.connect();
   try {
     await asegurarEsquemaCaja(client);
-    const idCuenta = Number(req.params.id || req.body.id_cuenta);
-    if (!idCuenta) return res.status(400).json({ ok: false, message: 'Cuenta invalida.' });
+    const body = req.body || {};
+    const idCuenta = Number(req.params.id || body.id_cuenta);
+    if (!Number.isSafeInteger(idCuenta) || idCuenta <= 0) {
+      return res.status(400).json({ ok: false, message: 'Cuenta invalida.' });
+    }
 
-    const comprobante = validarComprobante(req.body || {});
-    const metodo = mapMetodoPago(req.body.metodo_pago || req.body.metodoPago);
-    const idsSolicitados = Array.from(new Set((req.body.detalles || req.body.items || [])
-      .map((d) => Number(d.id_detalle_producto || d.id))
-      .filter(Boolean)));
+    const comprobante = validarComprobante(body);
+    const metodo = validarMetodoPagoCaja(body.metodo_pago ?? body.metodoPago);
+    const referencia = validarReferenciaPagoCaja(body, metodo);
+    const idsSolicitados = validarDetallesSolicitadosCaja(body);
 
     await client.query('BEGIN');
     const { cuenta, detalles } = await obtenerPendientesCuenta(client, idCuenta);
@@ -348,7 +411,7 @@ async function registrarPago(req, res) {
         metodo,
         monto,
         String(req.body.pagado_por || 'Cliente').trim() || 'Cliente',
-        req.body.referencia || req.body.codigo_aprobacion || null,
+        referencia,
         esTotal ? 'total' : 'parcial',
         req.body.mesa_pagadora || null,
         req.body.notas || 'Pago registrado por Caja',
