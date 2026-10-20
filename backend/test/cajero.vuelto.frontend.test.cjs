@@ -32,7 +32,7 @@ function escenarioCaja({ metodo = 'Efectivo', recibido = '50.00', referencia = '
     'notificaciones-caja': notificacion,
   };
   const contexto = vm.createContext({
-    window: { MENUGO_PERSONAL_BLOQUEADO: false, MENUGO_API: 'http://localhost:4000/api', location: { search: '' } },
+    window: { MENUGO_PERSONAL_BLOQUEADO: false, MENUGO_API: 'http://localhost:4000/api', location: { search: '' }, crypto: require('node:crypto').webcrypto },
     URLSearchParams,
     document: {
       getElementById: (id) => elementos[id] || null,
