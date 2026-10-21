@@ -31,7 +31,9 @@ jobs:
         run: node --check backend/src/controllers/cajero.controller.js
 
       - name: Validar sintaxis del frontend
-        run: node --check Frontend/js/caja.js
+        run: |
+          node --check Frontend/js/caja.js
+          node --check Frontend/js/subcuentas-caja.js
 
       - name: Ejecutar pruebas automatizadas del cajero
         run: node --test backend/test/*.test.cjs

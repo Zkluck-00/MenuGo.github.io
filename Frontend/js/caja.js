@@ -12,9 +12,17 @@ function escapeCaja(valor) { return String(valor ?? '').replaceAll('&', '&amp;')
 function fechaCaja(valor) { return valor ? new Date(valor).toLocaleString('es-PE') : '-'; }
 
 // Una cuenta puede cobrarse parcialmente si al menos un producto esta entregado.
+// Cuando hay una division, el importe reservado a personas NO puede
+// cobrarse otra vez por el flujo normal. Los mocks antiguos pueden no
+// incluir monto_libre y usan monto_pendiente como respaldo.
+function montoLibreDetalleCaja(detalle) {
+  const valor = detalle.monto_libre ?? detalle.monto_pendiente ?? 0;
+  return Math.max(0, Number(valor) || 0);
+}
+
 function productosCobrablesCaja(cuenta) {
   return (cuenta.detalles || []).filter((detalle) =>
-    detalle.puede_pagarse && Number(detalle.monto_pendiente || 0) > 0
+    detalle.puede_pagarse && montoLibreDetalleCaja(detalle) > 0
   );
 }
 
@@ -192,8 +200,12 @@ function renderCuentasCaja(lista) {
   contenedor.innerHTML = lista.map((cuenta) => {
     const { cobrables, bloqueados: noListos, tipo } = clasificarCuentaCaja(cuenta);
     const puedeCobrar = cobrables > 0;
-    const estadoCobro = tipo === 'esperando' ? 'Esperando entrega' : tipo === 'parcial' ? 'Cobro parcial disponible' : 'Lista para cobrar';
-    const estiloEstado = tipo === 'esperando' ? 'bg-amber-100 text-amber-700' : tipo === 'parcial' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700';
+    const tieneReservas = (cuenta.detalles || []).some(d => Number(d.monto_reservado || 0) > 0);
+    const soloReservado = !puedeCobrar && noListos === 0 && tieneReservas;
+    const estadoCobro = soloReservado ? 'Reservado a participantes'
+      : tipo === 'esperando' ? 'Esperando entrega' : tipo === 'parcial' ? 'Cobro parcial disponible' : 'Lista para cobrar';
+    const estiloEstado = soloReservado ? 'bg-blue-100 text-blue-800'
+      : tipo === 'esperando' ? 'bg-amber-100 text-amber-700' : tipo === 'parcial' ? 'bg-blue-100 text-blue-700' : 'bg-emerald-100 text-emerald-700';
     const solicitud = cuenta.solicitud_cuenta;
     return `<article class="rounded-3xl border ${solicitud ? 'border-orange-300' : 'border-slate-200'} bg-white p-5 shadow-lg shadow-slate-900/5">
       <div class="flex items-start justify-between gap-3">
@@ -211,10 +223,12 @@ function renderCuentasCaja(lista) {
         <div class="rounded-2xl bg-orange-50 p-3"><p class="text-[11px] font-black uppercase text-orange-700">Pendiente</p><p class="mt-1 font-black text-orange-700">${solesCaja(cuenta.total_pendiente)}</p></div>
       </div>
       ${noListos ? `<p class="mt-3 text-xs font-bold text-amber-700">${noListos} producto(s) aun no estan habilitados para cobro.</p>` : ''}
-      <div class="mt-4 flex gap-2">
-        <button ${puedeCobrar ? '' : 'disabled'} onclick="abrirCobroCaja('${cuenta.id_cuenta}')" class="flex-1 rounded-2xl ${puedeCobrar ? 'bg-slate-950 hover:bg-slate-800' : 'cursor-not-allowed bg-slate-300'} px-4 py-3 text-sm font-black text-white">${puedeCobrar ? (noListos ? 'Cobrar productos entregados' : 'Cobrar en caja') : 'Esperar entrega'}</button>
+      <div class="mt-4 flex flex-wrap gap-2">
+        <button ${puedeCobrar ? '' : 'disabled'} onclick="abrirCobroCaja('${cuenta.id_cuenta}')" class="flex-1 rounded-2xl ${puedeCobrar ? 'bg-slate-950 hover:bg-slate-800' : 'cursor-not-allowed bg-slate-300'} px-4 py-3 text-sm font-black text-white">${puedeCobrar ? (noListos ? 'Cobrar productos entregados' : 'Cobrar en caja') : (soloReservado ? 'Cobrar desde división' : 'Esperar entrega')}</button>
         ${solicitud ? `<button onclick="atenderSolicitudCaja('${solicitud.id_solicitud}')" class="rounded-2xl border border-orange-200 bg-orange-50 px-4 py-3 text-sm font-black text-orange-700 hover:bg-orange-100">Atender</button>` : ''}
+        <a href="dividir_cuenta.html?id_cuenta=${encodeURIComponent(cuenta.id_cuenta)}" class="w-full rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-center text-sm font-black text-blue-800 hover:bg-blue-100">Dividir cuenta por persona</a>
       </div>
+      ${tieneReservas ? '<p class="mt-3 text-xs font-semibold text-blue-700">Esta cuenta tiene importes reservados a participantes. Puedes cobrarlos desde Dividir cuenta.</p>' : ''}
     </article>`;
   }).join('');
 }
@@ -245,7 +259,7 @@ function abrirCobroCaja(idCuenta) {
   if (!cuenta) return alert('Cuenta no encontrada.');
   const items = productosCobrablesCaja(cuenta);
   if (!items.length) return alert('Esta cuenta aun no tiene productos disponibles para cobrar.');
-  const totalDisponible = items.reduce((suma, item) => suma + Number(item.monto_pendiente), 0);
+  const totalDisponible = items.reduce((suma, item) => suma + montoLibreDetalleCaja(item), 0);
   const panel = document.getElementById('panel-cobro');
   const contenido = document.getElementById('contenido-cobro');
 
@@ -253,7 +267,7 @@ function abrirCobroCaja(idCuenta) {
   <div class="grid grid-cols-1 gap-5 p-5 lg:grid-cols-[1fr_390px]">
     <section class="rounded-3xl border border-slate-200 p-4">
       <div class="mb-3 flex items-center justify-between gap-3"><h3 class="font-black">Productos a cobrar</h3><button onclick="seleccionarTodosCaja()" type="button" class="text-xs font-black text-orange-600">Seleccionar todos</button></div>
-      <div>${items.map((item) => `<label class="flex items-start gap-3 border-b border-slate-100 py-3"><input type="checkbox" class="item-cobro-caja mt-1 h-5 w-5" data-id="${item.id_detalle_producto}" data-monto="${item.monto_pendiente}" checked onchange="actualizarTotalCobroCaja()"><span class="flex-1"><strong>${escapeCaja(item.nombre)}</strong><br><small class="text-slate-500">${escapeCaja(item.observacion || `Pedido #${item.id_pedido}`)}</small></span><strong>${solesCaja(item.monto_pendiente)}</strong></label>`).join('')}</div>
+      <div>${items.map((item) => `<label class="flex items-start gap-3 border-b border-slate-100 py-3"><input type="checkbox" class="item-cobro-caja mt-1 h-5 w-5" data-id="${item.id_detalle_producto}" data-monto="${montoLibreDetalleCaja(item)}" checked onchange="actualizarTotalCobroCaja()"><span class="flex-1"><strong>${escapeCaja(item.nombre)}</strong><br><small class="text-slate-500">${escapeCaja(item.observacion || `Pedido #${item.id_pedido}`)}</small></span><strong>${solesCaja(montoLibreDetalleCaja(item))}</strong></label>`).join('')}</div>
     </section>
     <form onsubmit="registrarPagoCaja(event, '${cuenta.id_cuenta}')" class="rounded-3xl bg-slate-50 p-4">
       <div class="rounded-2xl bg-white p-4 text-center"><p class="text-xs font-black uppercase text-slate-500">Total seleccionado</p><p id="total-cobro-caja" class="mt-1 text-3xl font-black text-slate-950">${solesCaja(totalDisponible)}</p></div>

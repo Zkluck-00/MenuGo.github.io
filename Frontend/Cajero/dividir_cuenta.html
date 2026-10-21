@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MenuGo | Dividir cuentas</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="min-h-screen bg-[#f7f3ec] text-slate-900">
+  <main class="mx-auto max-w-7xl px-4 py-5 lg:px-6">
+    <header class="mb-6 rounded-[28px] bg-gradient-to-br from-slate-950 to-slate-700 px-5 py-6 text-white shadow-xl md:px-8">
+      <div class="flex flex-wrap items-center justify-between gap-5">
+        <div class="flex items-center gap-4">
+          <img src="../img/Log.png" alt="MenuGo" class="h-16 w-16 rounded-full bg-white p-2 object-contain" />
+          <div>
+            <p class="text-xs font-black uppercase tracking-widest text-blue-200">MenuGo · Cajero</p>
+            <h1 class="mt-1 text-3xl font-black">Dividir una cuenta</h1>
+            <p class="mt-1 max-w-xl text-sm text-slate-200">Reparte importes entre personas y registra cada pago sin duplicar el pedido.</p>
+          </div>
+        </div>
+        <nav aria-label="Navegación de cajero" class="flex flex-wrap gap-2">
+          <a href="cajero.html" class="rounded-xl bg-white/10 px-4 py-3 text-sm font-black hover:bg-white/20">Volver a Caja</a>
+          <a href="historial_pagos.html" class="rounded-xl bg-white/10 px-4 py-3 text-sm font-black hover:bg-white/20">Historial de pagos</a>
+          <a href="corte_caja.html" class="rounded-xl bg-white/10 px-4 py-3 text-sm font-black hover:bg-white/20">Arqueo</a>
+        </nav>
+      </div>
+    </header>
+
+    <div id="mensaje-sub" role="status" aria-live="polite" class="mb-5 hidden rounded-2xl border p-4 text-sm font-semibold"></div>
+
+    <section class="mb-5 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="titulo-seleccionar-sub">
+      <div class="flex flex-wrap items-end gap-3">
+        <label class="min-w-[230px] flex-1">
+          <span id="titulo-seleccionar-sub" class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-600">Cuenta o mesa pendiente</span>
+          <select id="selector-cuenta-sub" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold" aria-describedby="ayuda-selector-sub">
+            <option value="">Consultando cuentas...</option>
+          </select>
+        </label>
+        <button id="btn-actualizar-sub" type="button" class="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-black hover:bg-slate-100">Actualizar datos</button>
+        <span id="estado-turno-sub" role="status" class="rounded-xl bg-slate-100 px-4 py-3 text-xs font-black text-slate-600">Consultando turno...</span>
+      </div>
+      <p id="ayuda-selector-sub" class="mt-2 text-xs text-slate-600">Las mesas unidas por el Mesero aparecen bajo una misma cuenta. No se modifica ni duplica la cuenta original.</p>
+    </section>
+
+    <section id="aviso-pendiente-sub" class="mb-5 hidden rounded-3xl border border-amber-300 bg-amber-50 p-5 text-amber-950" aria-labelledby="titulo-pendiente-sub">
+      <h2 id="titulo-pendiente-sub" class="text-lg font-black">Existe un cobro sin confirmación</h2>
+      <p class="mt-1 text-sm">No crees otro pago para esta persona. Recupera la MISMA solicitud con su clave original. Si sigue fallando, comprueba el historial de pagos antes de cualquier decisión.</p>
+      <p id="descripcion-pendiente-sub" class="mt-2 text-xs font-semibold"></p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button id="btn-reintentar-sub" type="button" class="rounded-xl bg-amber-900 px-4 py-2 text-sm font-black text-white disabled:opacity-50">Reintentar mismo cobro</button>
+        <a href="historial_pagos.html" class="rounded-xl border border-amber-900 px-4 py-2 text-sm font-black hover:bg-amber-100">Revisar historial</a>
+      </div>
+    </section>
+
+    <section id="vacio-sub" class="rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center font-semibold text-slate-600">
+      Selecciona una mesa o cuenta para gestionar la división.
+    </section>
+
+    <div id="panel-principal-sub" class="hidden space-y-5">
+      <section class="rounded-3xl bg-white p-5 shadow-sm" aria-labelledby="titulo-cuenta-sub">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p class="text-xs font-black uppercase tracking-widest text-blue-700">Cuenta activa</p>
+            <h2 id="titulo-cuenta-sub" class="mt-1 text-2xl font-black">—</h2>
+            <p id="mesas-cuenta-sub" class="mt-1 text-sm font-semibold text-slate-600">—</p>
+          </div>
+          <span id="estado-cuenta-sub" class="rounded-full bg-blue-100 px-3 py-2 text-xs font-black text-blue-800">Pendiente</span>
+        </div>
+        <div class="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div class="rounded-xl bg-slate-50 p-4"><p class="text-xs font-bold text-slate-500">Saldo de la cuenta</p><p id="total-pendiente-sub" class="mt-1 text-xl font-black">S/ —</p></div>
+          <div class="rounded-xl bg-blue-50 p-4"><p class="text-xs font-bold text-blue-700">Asignado a personas</p><p id="total-asignado-sub" class="mt-1 text-xl font-black text-blue-900">S/ —</p></div>
+          <div class="rounded-xl bg-emerald-50 p-4"><p class="text-xs font-bold text-emerald-700">Pagado por personas</p><p id="total-pagado-sub" class="mt-1 text-xl font-black text-emerald-800">S/ —</p></div>
+          <div class="rounded-xl bg-orange-50 p-4"><p class="text-xs font-bold text-orange-700">Aún sin asignar</p><p id="total-libre-sub" class="mt-1 text-xl font-black text-orange-800">S/ —</p></div>
+        </div>
+        <p class="mt-3 text-xs font-semibold text-slate-500">Los importes libres pueden asignarse a participantes o cobrarse normalmente desde Caja. La asignación no es un pago.</p>
+      </section>
+
+      <div class="grid grid-cols-1 gap-5 xl:grid-cols-[1.08fr_0.92fr]">
+        <div class="space-y-5">
+          <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="titulo-productos-sub">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <h2 id="titulo-productos-sub" class="text-xl font-black">Productos de la cuenta</h2>
+              <span id="contador-productos-sub" class="text-xs font-bold text-slate-500">—</span>
+            </div>
+            <p class="mt-1 text-xs text-slate-500">Puedes asignar importes aunque Cocina siga preparando; solo se cobrarán productos entregados.</p>
+            <div id="lista-productos-sub" class="mt-4 space-y-3" aria-live="polite"></div>
+          </section>
+
+          <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="titulo-asignar-sub">
+            <h2 id="titulo-asignar-sub" class="text-xl font-black">Asignar importe a una persona</h2>
+            <p class="mt-1 text-sm text-slate-600">Ejemplo: pizza de S/ 35 → Ana S/ 15 y Luis S/ 20.</p>
+            <form id="form-asignar-sub" class="mt-4 space-y-3">
+              <fieldset id="campos-asignacion-sub" disabled class="space-y-3">
+                <label class="block"><span class="mb-1 block text-xs font-black uppercase text-slate-600">Participante</span>
+                  <select id="select-persona-asignar" required class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold"></select>
+                </label>
+                <label class="block"><span class="mb-1 block text-xs font-black uppercase text-slate-600">Producto</span>
+                  <select id="select-producto-asignar" required class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold"></select>
+                </label>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label class="block"><span class="mb-1 block text-xs font-black uppercase text-slate-600">Importe a asignar (S/)</span>
+                    <input id="monto-asignar-sub" type="text" inputmode="decimal" maxlength="13" placeholder="15.00" required class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold" />
+                  </label>
+                  <label class="block"><span class="mb-1 block text-xs font-black uppercase text-slate-600">Cantidad (opcional)</span>
+                    <input id="cantidad-asignar-sub" type="text" inputmode="decimal" maxlength="16" placeholder="Ej. 0.500" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold" />
+                  </label>
+                </div>
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <p id="ayuda-asignar-sub" class="text-xs font-bold text-slate-600">Selecciona una persona y un producto.</p>
+                  <button id="btn-monto-libre-sub" type="button" class="rounded-lg bg-blue-50 px-3 py-2 text-xs font-black text-blue-800 hover:bg-blue-100">Asignar todo lo libre</button>
+                </div>
+                <button id="btn-guardar-asignacion-sub" type="submit" class="w-full rounded-xl bg-blue-700 px-4 py-3 text-sm font-black text-white hover:bg-blue-800 disabled:cursor-not-allowed disabled:bg-slate-300">Guardar asignación</button>
+              </fieldset>
+            </form>
+          </section>
+        </div>
+
+        <div class="space-y-5">
+          <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm" aria-labelledby="titulo-participantes-sub">
+            <h2 id="titulo-participantes-sub" class="text-xl font-black">Participantes y saldos</h2>
+            <form id="form-persona-sub" class="mt-4 flex flex-wrap gap-2">
+              <label class="min-w-[170px] flex-1"><span class="sr-only">Nombre del participante</span>
+                <input id="nombre-persona-sub" maxlength="80" required placeholder="Ej. Ana" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold" />
+              </label>
+              <button id="btn-crear-persona-sub" type="submit" class="rounded-xl bg-slate-950 px-4 py-3 text-sm font-black text-white hover:bg-slate-800 disabled:opacity-50">Agregar persona</button>
+            </form>
+            <div id="lista-personas-sub" class="mt-4 space-y-3" aria-live="polite"></div>
+          </section>
+
+          <section id="panel-pago-sub" class="hidden rounded-3xl border border-emerald-200 bg-white p-5 shadow-sm" aria-labelledby="titulo-pago-sub">
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p class="text-xs font-black uppercase tracking-widest text-emerald-700">Cobro de participante</p>
+                <h2 id="titulo-pago-sub" class="mt-1 text-xl font-black">—</h2>
+              </div>
+              <button id="btn-cancelar-pago-sub" type="button" class="rounded-xl border border-slate-300 px-3 py-2 text-xs font-black hover:bg-slate-50">Cerrar</button>
+            </div>
+            <p class="mt-2 text-xs text-slate-600">Se cobran exclusivamente los importes asignados a esta persona. El backend verifica los saldos y el estado de Cocina.</p>
+            <form id="form-pago-sub" class="mt-4 space-y-3">
+              <fieldset id="campos-pago-sub" disabled class="space-y-3">
+                <div id="lista-seleccion-pago-sub" class="space-y-2"></div>
+                <div class="rounded-xl bg-slate-950 p-4 text-white">
+                  <p class="text-xs font-black uppercase tracking-wide text-slate-300">Importe seleccionado</p>
+                  <p id="total-pago-sub" class="mt-1 text-3xl font-black">S/ 0.00</p>
+                </div>
+                <label class="block"><span class="mb-1 block text-xs font-black uppercase text-slate-600">Método de pago</span>
+                  <select id="metodo-pago-sub" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold">
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Yape">Yape</option>
+                    <option value="Plin">Plin</option>
+                    <option value="Tarjeta credito">Tarjeta crédito</option>
+                    <option value="Tarjeta debito">Tarjeta débito</option>
+                  </select>
+                </label>
+                <div id="bloque-efectivo-sub" class="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                  <label class="block"><span class="mb-1 block text-xs font-black uppercase text-emerald-800">Efectivo recibido (S/)</span>
+                    <input id="recibido-pago-sub" type="text" inputmode="decimal" placeholder="Ej. 50.00" class="w-full rounded-xl border border-emerald-300 bg-white px-4 py-3 text-lg font-black" />
+                  </label>
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <button type="button" data-efectivo-sub="exacto" class="rounded-lg bg-white px-3 py-2 text-xs font-bold text-emerald-900">Exacto</button>
+                    <button type="button" data-efectivo-sub="20" class="rounded-lg bg-white px-3 py-2 text-xs font-bold text-emerald-900">S/ 20</button>
+                    <button type="button" data-efectivo-sub="50" class="rounded-lg bg-white px-3 py-2 text-xs font-bold text-emerald-900">S/ 50</button>
+                    <button type="button" data-efectivo-sub="100" class="rounded-lg bg-white px-3 py-2 text-xs font-bold text-emerald-900">S/ 100</button>
+                    <button type="button" data-efectivo-sub="200" class="rounded-lg bg-white px-3 py-2 text-xs font-bold text-emerald-900">S/ 200</button>
+                  </div>
+                  <p id="estado-efectivo-sub" role="status" class="mt-3 text-sm font-black text-emerald-800">Ingresa el efectivo recibido.</p>
+                </div>
+                <label id="bloque-referencia-sub" class="hidden"><span class="mb-1 block text-xs font-black uppercase text-slate-600">Referencia de operación (mínimo 3 caracteres)</span>
+                  <input id="referencia-pago-sub" maxlength="100" placeholder="Código de operación verificado manualmente" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold" />
+                </label>
+                <label class="block"><span class="mb-1 block text-xs font-black uppercase text-slate-600">Comprobante</span>
+                  <select id="tipo-comprobante-sub" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold">
+                    <option value="boleta">Boleta</option>
+                    <option value="factura">Factura</option>
+                  </select>
+                </label>
+                <label class="block"><span id="etiqueta-documento-sub" class="mb-1 block text-xs font-black uppercase text-slate-600">DNI (8 dígitos)</span>
+                  <input id="documento-pago-sub" inputmode="numeric" maxlength="8" placeholder="DNI" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold" />
+                </label>
+                <label id="bloque-razon-social-sub" class="hidden"><span class="mb-1 block text-xs font-black uppercase text-slate-600">Razón social</span>
+                  <input id="razon-social-sub" maxlength="160" placeholder="Razón social" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold" />
+                </label>
+                <button id="btn-registrar-pago-sub" type="submit" class="w-full rounded-xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">Registrar pago individual</button>
+              </fieldset>
+            </form>
+            <p class="mt-3 text-xs font-semibold text-slate-500">Referencias de Yape/Plin/tarjeta se registran manualmente; no equivalen a una confirmación bancaria automática.</p>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script src="../js/config.js"></script>
+  <script src="../js/personal-auth.js"></script>
+  <script src="../js/subcuentas-caja.js"></script>
+</body>
+</html>
