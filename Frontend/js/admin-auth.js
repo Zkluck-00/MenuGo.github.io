@@ -1,88 +1,81 @@
-// MenuGo - autenticacion temporal del administrador
-// Base frontend para pruebas. Cuando exista backend, reemplazar por autenticacion real.
+// MenuGo - autenticacion real de Administrador mediante JWT de PostgreSQL.
+const ADMIN_KEYS = { sesion: 'menugo_admin_sesion' };
+const API_BASE = window.MENUGO_API || 'http://localhost:4000/api';
 
-const ADMIN_KEYS = {
-  sesion: "menugo_admin_sesion",
-};
-
-const ADMIN_DEFAULT = {
-  nombre: "Administrador MenuGo",
-  email: "Admin@MenuGo.com",
-  password: "AdminGo123#",
-  rol: "Administrador",
-};
-
-const API_BASE = window.MENUGO_API || "http://localhost:4000/api";
-
-async function apiJson(url, options = {}) {
-  const response = await fetch(`${API_BASE}${url}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
-    ...options
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data.ok === false) throw new Error(data.message || data.error || "Error de servidor");
-  return data;
-}
-
-function normalizarAdmin(valor) {
-  return String(valor || "").trim().toLowerCase();
-}
+function normalizarAdmin(valor) { return String(valor || '').trim().toLowerCase(); }
 
 function obtenerSesionAdmin() {
   try {
-    const sesion = JSON.parse(localStorage.getItem(ADMIN_KEYS.sesion) || "null");
-    if (!sesion || normalizarAdmin(sesion.rol) !== normalizarAdmin("Administrador")) {
+    const sesion = JSON.parse(localStorage.getItem(ADMIN_KEYS.sesion) || 'null');
+    if (!sesion || normalizarAdmin(sesion.rol) !== 'administrador' ||
+        typeof sesion.token !== 'string' || !sesion.token) {
       localStorage.removeItem(ADMIN_KEYS.sesion);
       return null;
     }
     return sesion;
-  } catch (error) {
-    console.error("No se pudo leer la sesion admin", error);
+  } catch (_) {
     localStorage.removeItem(ADMIN_KEYS.sesion);
     return null;
   }
 }
 
-function crearSesionAdmin(usuario = null) {
-  const sesion = {
-    email: usuario?.correo || usuario?.email || ADMIN_DEFAULT.email,
-    nombre: usuario?.nombre || ADMIN_DEFAULT.nombre,
-    rol: "Administrador",
-    inicioSesion: new Date().toISOString(),
-  };
+function obtenerTokenAdmin() { return obtenerSesionAdmin()?.token || ''; }
 
+function crearSesionAdmin(usuario, token) {
+  if (!token || typeof token !== 'string') throw new Error('El servidor no entrego una sesion valida.');
+  const sesion = {
+    email: usuario?.correo || usuario?.email || '',
+    nombre: usuario?.nombre || 'Administrador',
+    rol: 'Administrador', token, inicioSesion: new Date().toISOString(),
+  };
   localStorage.setItem(ADMIN_KEYS.sesion, JSON.stringify(sesion));
   return sesion;
 }
 
 function cerrarSesionAdmin() {
-  if (!confirm("¿Seguro que deseas cerrar sesión?")) return;
+  if (!confirm('¿Seguro que deseas cerrar sesion?')) return;
   localStorage.removeItem(ADMIN_KEYS.sesion);
-  window.location.href = "login.html?logout=1";
+  window.location.href = 'login.html?logout=1';
+}
+
+async function fetchAdminProtegido(url, options = {}) {
+  const destino = url.startsWith('http://') || url.startsWith('https://') ? url : `${API_BASE}${url}`;
+  const token = obtenerTokenAdmin();
+  const response = await fetch(destino, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(options.headers || {}),
+    },
+  });
+  if (response.status === 401) {
+    localStorage.removeItem(ADMIN_KEYS.sesion);
+    window.location.replace('login.html?access=required');
+  }
+  return response;
+}
+
+async function apiJson(url, options = {}) {
+  const response = await fetchAdminProtegido(url, options);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) throw new Error(data.message || data.error || 'Error de servidor');
+  return data;
 }
 
 async function iniciarSesionAdmin(email, password) {
-  try {
-    const data = await apiJson("/admin/login", {
-      method: "POST",
-      body: JSON.stringify({ usuario: email, clave: password })
-    });
-    return crearSesionAdmin(data.data);
-  } catch (error) {
-    const emailCorrecto = normalizarAdmin(email) === normalizarAdmin(ADMIN_DEFAULT.email);
-    const passwordCorrecto = String(password || "") === ADMIN_DEFAULT.password;
-    if (!emailCorrecto || !passwordCorrecto) {
-      throw new Error("Usuario o contrasena incorrectos.");
-    }
-    return crearSesionAdmin();
-  }
+  const response = await fetch(`${API_BASE}/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: email, clave: password }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) throw new Error(data.message || 'Credenciales invalidas.');
+  return crearSesionAdmin(data.data, data.token);
 }
 
 function protegerRutaAdmin() {
   const sesion = obtenerSesionAdmin();
-  if (!sesion) {
-    window.location.href = "login.html?access=required";
-    return null;
-  }
+  if (!sesion) window.location.replace('login.html?access=required');
   return sesion;
 }

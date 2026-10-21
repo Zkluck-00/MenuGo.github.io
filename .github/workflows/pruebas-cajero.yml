@@ -1,0 +1,42 @@
+name: Pruebas automatizadas del cajero
+
+on:
+  push:
+    branches:
+      - feature/cajero-mejoras
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cajero-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas-cajero:
+    name: Sintaxis y pruebas de regresion
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@v4
+
+      - name: Preparar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verificar sintaxis JavaScript
+        shell: bash
+        run: |
+          find backend/src backend/scripts backend/test Frontend/js -type f \
+            \( -name '*.js' -o -name '*.cjs' \) -print0 | xargs -0 -n 1 node --check
+
+      - name: Ejecutar pruebas automatizadas
+        run: node --test backend/test/*.test.cjs

@@ -202,100 +202,69 @@ async function recalcularCuenta(client, idGrupoMesa) {
   );
 }
 
-async function resolverProducto(client, item) {
-  const codigo = String(item.codigo_producto || "").trim();
-  const nombre = item.nombre || "Producto sin nombre";
-  const precio = Number(item.precio || item.precio_unitario || 0);
+// Commit 10: los precios del navegador nunca participan en el total de un pedido.
+// PostgreSQL almacena precio NUMERIC(10,2). Convertimos a centimos de manera
+// explicita para que 0.10 + 0.20 sea exactamente 0.30.
+function precioCatalogoCentavos(precio) {
+  const match = String(precio ?? "").trim().match(/^(\d{1,8})(?:\.(\d{1,2}))?$/);
+  if (!match) throw new Error("El precio del producto en la base de datos es invalido.");
+  const centavos = Number(match[1]) * 100 + Number((match[2] || "").padEnd(2, "0"));
+  if (!Number.isSafeInteger(centavos) || centavos <= 0) {
+    throw new Error("El precio del producto en la base de datos es invalido.");
+  }
+  return centavos;
+}
 
+function importePedidoCentavos(centavos) {
+  return (centavos / 100).toFixed(2);
+}
+
+function cantidadPedidoValida(cantidadOriginal) {
+  // Se acepta que los clientes antiguos omitan cantidad (1 unidad).
+  const valor = cantidadOriginal === undefined ? 1 : cantidadOriginal;
+  if ((typeof valor !== "number" && typeof valor !== "string") ||
+      !/^\d+$/.test(String(valor).trim())) {
+    throw new Error("La cantidad debe ser un entero positivo.");
+  }
+  const cantidad = Number(valor);
+  if (!Number.isSafeInteger(cantidad) || cantidad < 1 || cantidad > 999) {
+    throw new Error("La cantidad debe estar entre 1 y 999 unidades.");
+  }
+  return cantidad;
+}
+
+async function resolverProducto(client, item, tipoPedido) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    throw new Error("Producto invalido en el pedido.");
+  }
+  const codigo = String(item.codigo_producto ?? item.id ?? "").trim();
   if (!codigo) {
-    throw new Error(`Producto "${nombre}" no tiene codigo_producto. No se puede procesar.`);
+    throw new Error("El producto no tiene codigo_producto.");
   }
 
-  if (item.tipo_producto === "bebida" || esBebida(item)) {
-    const producto = await client.query(
-      `SELECT id_bebida AS id, precio, activo, 'bebida' AS tipo
-       FROM bebidas
-       WHERE codigo_bebida = $1
-       LIMIT 1`,
-      [codigo],
-    );
+  const esProductoBebida = normalizarTexto(item.tipo_producto) === "bebida" || esBebida(item);
+  const consulta = esProductoBebida
+    ? `SELECT id_bebida AS id, precio, activo, 'bebida' AS tipo
+       FROM bebidas WHERE codigo_bebida = $1 LIMIT 1`
+    : `SELECT id_plato AS id, precio, activo, disponible_llevar, 'plato' AS tipo
+       FROM platos WHERE codigo_plato = $1 LIMIT 1`;
 
-    if (producto.rows.length === 0) {
-      throw new Error(`Bebida con codigo "${codigo}" no encontrada en la base de datos.`);
-    }
-    return producto.rows[0];
+  const { rows } = await client.query(consulta, [codigo]);
+  if (!rows.length) throw new Error(`Producto con codigo "${codigo}" no encontrado en la base de datos.`);
+
+  const producto = rows[0];
+  if (producto.activo !== true) {
+    throw new Error(`Producto "${codigo}" no esta activo en el menu.`);
   }
-
-  const producto = await client.query(
-    `SELECT id_plato AS id, precio, activo, 'plato' AS tipo
-     FROM platos
-     WHERE codigo_plato = $1
-     LIMIT 1`,
-    [codigo],
-  );
-
-  if (producto.rows.length === 0) {
-    throw new Error(`Plato con codigo "${codigo}" no encontrado en la base de datos.`);
+  if (tipoPedido === "llevar" && producto.tipo === "plato" && producto.disponible_llevar !== true) {
+    throw new Error(`Producto "${codigo}" no esta habilitado para llevar.`);
   }
-  return producto.rows[0];
+  // Esta es la unica fuente de precio permitida: platos.precio / bebidas.precio.
+  return { ...producto, precioCentavos: precioCatalogoCentavos(producto.precio) };
 }
 
-async function registrarPagoInicialSiAplica(client, pedido, body, total) {
-  const estadoPago = normalizarTexto(body.estadoPago || body.estado_pago || "");
-  const metodoPago = body.metodoPago || body.metodo_pago;
-  if (!metodoPago || estadoPago !== "pagado") return null;
-
-  let idCuenta = null;
-  if (pedido.id_grupo_mesa) {
-    idCuenta = await crearCuentaSiNoExiste(client, pedido.id_grupo_mesa);
-    await recalcularCuenta(client, pedido.id_grupo_mesa);
-  } else {
-    const grupo = await client.query(
-      `INSERT INTO grupos_mesa (nombre_grupo, mesa_principal, estado)
-       VALUES ($1, NULL, 'activo')
-       RETURNING id_grupo_mesa`,
-      [`Pedido para llevar ${pedido.id_pedido}`],
-    );
-    await client.query(
-      `UPDATE pedidos SET id_grupo_mesa = $1 WHERE id_pedido = $2`,
-      [grupo.rows[0].id_grupo_mesa, pedido.id_pedido],
-    );
-    const cuenta = await client.query(
-      `INSERT INTO cuentas (id_grupo_mesa, descripcion, tipo_cuenta, total, estado)
-       VALUES ($1, $2, 'mixta', $3, 'pendiente')
-       RETURNING id_cuenta`,
-      [grupo.rows[0].id_grupo_mesa, `Cuenta pedido llevar ${pedido.id_pedido}`, total],
-    );
-    idCuenta = cuenta.rows[0].id_cuenta;
-  }
-
-  const pago = await client.query(
-    `INSERT INTO pagos (id_cuenta, metodo_pago, monto, pagado_por, estado_pago, referencia, tipo_pago, notas)
-     VALUES ($1, $2, $3, $4, 'pagado', $5, 'total', $6)
-     RETURNING id_pago`,
-    [idCuenta, mapMetodoPago(metodoPago), total, body.nombre_cliente || body.cliente || "Cliente", body.referencia_pago || null, "Pago simulado registrado desde frontend"],
-  );
-
-  await client.query(
-    `INSERT INTO detalle_pago (id_pago, id_detalle_producto, monto)
-     SELECT $1, dp.id_detalle_producto, dp.subtotal
-     FROM detalle_producto dp
-     WHERE dp.id_pedido = $2
-     ON CONFLICT DO NOTHING`,
-    [pago.rows[0].id_pago, pedido.id_pedido],
-  );
-
-  await client.query(
-    `INSERT INTO comprobantes (id_pago, tipo_comprobante, dni, ruc, razon_social)
-     VALUES ($1, 'boleta', $2, NULL, NULL)
-     ON CONFLICT (id_pago) DO NOTHING`,
-    [pago.rows[0].id_pago, String(body.documento || "00000000").replace(/\D/g, "").padStart(8, "0").slice(0, 8)],
-  );
-
-  await client.query("UPDATE cuentas SET estado = 'pagada' WHERE id_cuenta = $1", [idCuenta]);
-
-  return pago.rows[0].id_pago;
-}
+// Un pedido creado por el cliente siempre queda pendiente de pago.
+// La confirmacion real se realiza por el Cajero; nunca desde estadoPago del navegador.
 
 async function obtenerDetallePedido(clientOrPool, idPedido) {
   const { rows } = await clientOrPool.query(
@@ -522,7 +491,21 @@ async function obtenerEstadoPedido(req, res) {
 }
 
 async function crearPedido(req, res) {
-  const client = await  (req.body.registrado_por ? meseroPool : clientePool).connect();
+  const bodyEntrada = req.body || {};
+  const rolAutenticado = normalizarTexto(req.personal?.rol);
+  const esMesero = rolAutenticado === 'mesero';
+  // El ID declarado por el navegador no concede permisos de Mesero.
+  const requierePersonal = bodyEntrada.registrado_por !== undefined &&
+    bodyEntrada.registrado_por !== null && bodyEntrada.registrado_por !== '';
+  if (requierePersonal && !esMesero) {
+    return res.status(403).json({ ok: false, message: 'Un pedido de Mesero requiere sesion de Mesero.' });
+  }
+  if (req.personal && !esMesero) {
+    return res.status(403).json({ ok: false, message: 'Este rol no registra pedidos desde el formulario de cliente.' });
+  }
+  const idMeseroVerificado = esMesero ? Number(req.personal.id_trabajador) : null;
+  const poolPedido = esMesero ? meseroPool : clientePool;
+  const client = await poolPedido.connect();
   try {
     const body = req.body || {};
     const tipoPedido = normalizarTexto(body.tipo_pedido || body.tipoConsumo || body.tipo || "mesa").includes("llevar") ? "llevar" : "mesa";
@@ -540,30 +523,40 @@ async function crearPedido(req, res) {
     const idUsuario = await asegurarUsuario(client, { ...body, tipo_pedido: tipoPedido });
     const numeroMesa = Number(body.id_mesa || String(body.mesa || "").match(/\d+/)?.[0] || 0);
 
-    if (tipoPedido === "mesa" && !body.registrado_por) {
+    if (tipoPedido === "mesa" && !esMesero) {
       await validarQrDeMesa(client, numeroMesa, body.qr_token || body.token_mesa || body.token);
     }
 
     let idGrupoMesa = tipoPedido === "mesa" ? await asegurarGrupoMesa(client, numeroMesa) : null;
     let idCuenta = idGrupoMesa ? await crearCuentaSiNoExiste(client, idGrupoMesa) : null;
 
-    let total = 0;
+    let totalCentavos = 0;
     const productosResueltos = [];
 
     for (const item of items) {
-      const producto = await resolverProducto(client, item);
-      const cantidad = Number(item.cantidad || 1);
-      const precioUnitario = Number(item.precio || item.precio_unitario || producto.precio);
-      if (cantidad <= 0 || precioUnitario <= 0) throw new Error("Cantidad o precio invalido");  
-      total += cantidad * precioUnitario;
-      productosResueltos.push({ item, producto, cantidad, precioUnitario, subtotal: cantidad * precioUnitario });
+      const producto = await resolverProducto(client, item, tipoPedido);
+      const cantidad = cantidadPedidoValida(item.cantidad);
+      const subtotalCentavos = cantidad * producto.precioCentavos;
+      if (!Number.isSafeInteger(subtotalCentavos) || subtotalCentavos > 9_999_999_999) {
+        throw new Error("El subtotal del producto supera el limite permitido.");
+      }
+      totalCentavos += subtotalCentavos;
+      if (!Number.isSafeInteger(totalCentavos) || totalCentavos > 999_999_999_999) {
+        throw new Error("El total del pedido supera el limite permitido.");
+      }
+      productosResueltos.push({
+        item, producto, cantidad,
+        precioUnitario: importePedidoCentavos(producto.precioCentavos),
+        subtotal: importePedidoCentavos(subtotalCentavos),
+      });
     }
+    const total = importePedidoCentavos(totalCentavos);
 
     const pedidoResult = await client.query(
       `INSERT INTO pedidos (id_grupo_mesa, id_usuario, tipo_pedido, nombre_cliente, telefono_llevar, estado, registrado_por)
        VALUES ($1, $2, $3, $4, $5, 'pendiente', $6)
        RETURNING *`,
-      [idGrupoMesa, idUsuario, tipoPedido, obtenerNombreCliente(body), tipoPedido === "llevar" ? limpiarTelefono(body.telefono || body.telefono_llevar) : null, body.registrado_por || null],
+      [idGrupoMesa, idUsuario, tipoPedido, obtenerNombreCliente(body), tipoPedido === "llevar" ? limpiarTelefono(body.telefono || body.telefono_llevar) : null, idMeseroVerificado],
     );
 
     const pedido = pedidoResult.rows[0];
@@ -609,11 +602,11 @@ async function crearPedido(req, res) {
     }
 
     if (idGrupoMesa) await recalcularCuenta(client, idGrupoMesa);
-    await registrarPagoInicialSiAplica(client, pedido, body, total);
+    // El importe y el estado de pago solo los confirma Caja.
 
     await client.query("COMMIT");
 eventEmitter.emitPedidoCreado(pedido);
-    const poolUsado = req.body.registrado_por ? meseroPool : clientePool;
+    const poolUsado = poolPedido;
     const rows = await obtenerPedidoRows(poolUsado, {});
     const creado = rows.find((row) => Number(row.id_pedido) === Number(pedido.id_pedido));
     res.status(201).json({ ok: true, message: "Pedido registrado en BD", data: await mapPedido(poolUsado, creado) });
@@ -650,8 +643,11 @@ async function actualizarEstadoPedido(req, res) {
   const client = await cocinaPool.connect();
   try {
     const estado = normalizarTexto(req.body.estado);
-    const rol = normalizarTexto(req.body.rol || req.query.rol);
+    const rol = normalizarTexto(req.personal?.rol);
 
+    if (!['mesero', 'cocina', 'administrador'].includes(rol)) {
+      return res.status(403).json({ ok: false, message: 'Este rol no puede cambiar estados de pedidos.' });
+    }
     if (!ESTADOS_VALIDOS.includes(estado)) {
       return res.status(400).json({ ok: false, message: `Estado invalido. Usa: ${ESTADOS_VALIDOS.join(", ")}` });
     }

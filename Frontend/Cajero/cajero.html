@@ -22,41 +22,115 @@
         </div>
         <nav class="flex flex-wrap justify-center gap-2 lg:justify-end">
           <a href="cajero.html?filtro=listas" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Cuentas</a>
-          <a href="corte_caja.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Corte de caja</a>
+          <a href="dividir_cuenta.html" class="rounded-2xl bg-blue-600 px-4 py-3 text-sm font-black text-white hover:bg-blue-700">Dividir cuentas</a>
+          <a href="movimientos_caja.html" class="rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-black text-white hover:bg-emerald-600">Movimientos</a>
+          <a href="corte_caja.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Arqueo y cierre</a>
           <a href="historial_pagos.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Historial</a>
           <a href="facturacion.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Comprobantes</a>
         </nav>
       </div>
     </header>
 
-    <section class="mb-5 grid grid-cols-2 gap-3 md:grid-cols-5">
-      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Cuentas listas</p>
-        <p id="stat-pendientes" class="mt-2 text-3xl font-black text-orange-600">0</p>
-      </article>
-      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Cobros de hoy</p>
-        <p id="stat-cobradas" class="mt-2 text-3xl font-black text-emerald-600">0</p>
-      </article>
-      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Efectivo</p>
-        <p id="stat-efectivo" class="mt-2 text-3xl font-black text-blue-600">S/ 0.00</p>
-      </article>
-      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Digital/Tarjeta</p>
-        <p id="stat-tarjeta" class="mt-2 text-3xl font-black text-purple-600">S/ 0.00</p>
-      </article>
-      <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
-        <p class="text-xs font-black uppercase tracking-wide text-slate-500">Total cobrado hoy</p>
-        <p id="stat-total" class="mt-2 text-3xl font-black text-slate-950">S/ 0.00</p>
-      </article>
+    <!-- Commit 13: apertura de turno vinculada al cajero identificado por JWT. -->
+    <section id="tarjeta-turno-caja" aria-labelledby="titulo-turno-caja" class="mb-6 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm md:p-6">
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p class="text-xs font-black uppercase tracking-wider text-orange-600">Control de turnos</p>
+          <h2 id="titulo-turno-caja" class="mt-1 text-xl font-black text-slate-950">Mi turno de caja</h2>
+          <p class="mt-1 text-sm font-semibold text-slate-500">Antes de cobrar, abre un turno con el efectivo inicial contado.</p>
+        </div>
+        <span id="estado-turno-caja" role="status" aria-live="polite" class="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-black text-slate-700">Consultando turno...</span>
+      </div>
+      <div id="mensaje-turno-caja" role="alert" aria-live="polite" class="hidden"></div>
+      <form id="form-apertura-turno-caja" class="mt-4 hidden" onsubmit="abrirTurnoCaja(event)">
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-[230px_1fr_auto] md:items-end">
+          <label class="block"><span class="mb-1 block text-xs font-black uppercase text-slate-600">Fondo inicial (S/)</span>
+            <input id="fondo-inicial-caja" type="text" inputmode="decimal" maxlength="13" required placeholder="Ej. 100.00" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-bold" />
+          </label>
+          <label class="block"><span class="mb-1 block text-xs font-black uppercase text-slate-600">Observaciones (opcional)</span>
+            <input id="observaciones-apertura-caja" maxlength="500" placeholder="Ej. Fondo contado y verificado" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-semibold" />
+          </label>
+          <button id="boton-abrir-turno-caja" type="submit" class="rounded-xl bg-emerald-600 px-5 py-3 font-black text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-300">Abrir mi turno</button>
+        </div>
+      </form>
+      <div id="resumen-turno-caja" class="mt-4 hidden">
+        <div class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <div class="rounded-2xl bg-slate-50 p-3"><p class="text-xs font-bold text-slate-500">Turno</p><p id="turno-id-caja" class="mt-1 font-black">-</p></div>
+          <div class="rounded-2xl bg-slate-50 p-3"><p class="text-xs font-bold text-slate-500">Fondo inicial</p><p id="turno-fondo-caja" class="mt-1 font-black">-</p></div>
+          <div class="rounded-2xl bg-slate-50 p-3"><p class="text-xs font-bold text-slate-500">Apertura (Perú)</p><p id="turno-fecha-caja" class="mt-1 text-sm font-bold">-</p></div>
+          <div class="rounded-2xl bg-slate-50 p-3"><p class="text-xs font-bold text-slate-500">Cobros del turno</p><p id="turno-cobros-caja" class="mt-1 font-black">0</p></div>
+          <div class="rounded-2xl bg-slate-50 p-3"><p class="text-xs font-bold text-slate-500">Total cobrado</p><p id="turno-total-caja" class="mt-1 font-black">S/ 0.00</p></div>
+          <div class="rounded-2xl bg-emerald-50 p-3"><p class="text-xs font-bold text-emerald-700">Ventas en efectivo</p><p id="turno-efectivo-caja" class="mt-1 font-black text-emerald-800">S/ 0.00</p></div>
+        </div>
+        <p class="mt-3 text-xs font-semibold text-slate-500">Estos cobros pertenecen a tu turno actual. Los ingresos y retiros manuales se registran en Movimientos. Para contar efectivo, registrar diferencias y cerrar este turno, usa Corte de caja.</p>
+      </div>
+    </section>
+
+    <!-- Indicadores de todas las cuentas activas: no dependen del cajero que inicio sesion. -->
+    <section aria-labelledby="titulo-estado-cuentas" class="mb-5">
+      <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 id="titulo-estado-cuentas" class="text-xl font-black text-slate-900">Estado de las cuentas</h2>
+        <span id="estado-actualizacion-caja" role="status" aria-live="polite" class="text-xs font-bold text-slate-500">Cargando indicadores...</span>
+      </div>
+      <div class="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p class="text-xs font-black uppercase tracking-wide text-slate-500">Cuentas pendientes</p>
+          <p id="stat-cuentas" class="mt-2 text-3xl font-black text-slate-900">0</p>
+        </article>
+        <article class="rounded-3xl border border-emerald-100 bg-white p-4 shadow-sm">
+          <p class="text-xs font-black uppercase tracking-wide text-slate-500">Listas completas</p>
+          <p id="stat-listas" class="mt-2 text-3xl font-black text-emerald-600">0</p>
+        </article>
+        <article class="rounded-3xl border border-blue-100 bg-white p-4 shadow-sm">
+          <p class="text-xs font-black uppercase tracking-wide text-slate-500">Cobro parcial</p>
+          <p id="stat-parciales" class="mt-2 text-3xl font-black text-blue-600">0</p>
+        </article>
+        <article class="rounded-3xl border border-amber-100 bg-white p-4 shadow-sm">
+          <p class="text-xs font-black uppercase tracking-wide text-slate-500">Esperando entrega</p>
+          <p id="stat-espera" class="mt-2 text-3xl font-black text-amber-600">0</p>
+        </article>
+        <article class="rounded-3xl border border-orange-100 bg-white p-4 shadow-sm">
+          <p class="text-xs font-black uppercase tracking-wide text-slate-500">Solicitaron cuenta</p>
+          <p id="stat-solicitudes" class="mt-2 text-3xl font-black text-orange-600">0</p>
+        </article>
+        <article class="rounded-3xl border border-slate-200 bg-slate-950 p-4 text-white shadow-sm">
+          <p class="text-xs font-black uppercase tracking-wide text-slate-300">Saldo por cobrar</p>
+          <p id="stat-por-cobrar" class="mt-2 text-2xl font-black">S/ 0.00</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- Totales del usuario autenticado, desde GET /api/cajero/resumen. -->
+    <section aria-labelledby="titulo-ventas-cajero" class="mb-5">
+      <div class="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 id="titulo-ventas-cajero" class="text-xl font-black text-slate-900">Mis cobros de hoy</h2>
+        <p class="text-xs font-semibold text-slate-500">Solo operaciones registradas por tu usuario</p>
+      </div>
+      <div class="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p class="text-xs font-black uppercase tracking-wide text-slate-500">Pagos registrados</p>
+          <p id="stat-cobradas" class="mt-2 text-3xl font-black text-emerald-600">0</p>
+        </article>
+        <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p class="text-xs font-black uppercase tracking-wide text-slate-500">Efectivo</p>
+          <p id="stat-efectivo" class="mt-2 text-2xl font-black text-blue-600">S/ 0.00</p>
+        </article>
+        <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p class="text-xs font-black uppercase tracking-wide text-slate-500">Yape, Plin y tarjetas</p>
+          <p id="stat-tarjeta" class="mt-2 text-2xl font-black text-purple-600">S/ 0.00</p>
+        </article>
+        <article class="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm">
+          <p class="text-xs font-black uppercase tracking-wide text-slate-500">Total cobrado hoy</p>
+          <p id="stat-total" class="mt-2 text-2xl font-black text-slate-950">S/ 0.00</p>
+        </article>
+      </div>
     </section>
 
     <section class="mb-5 rounded-3xl border border-slate-200 bg-white p-3 shadow-sm">
       <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div class="flex flex-wrap gap-2">
           <button type="button" data-filtro="todas" onclick="cambiarFiltroCuentas('todas')" class="filtro-cuenta rounded-full bg-slate-950 px-4 py-2 text-sm font-black text-white">Todas</button>
-          <button type="button" data-filtro="listas" onclick="cambiarFiltroCuentas('listas')" class="filtro-cuenta rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Listas para cobrar</button>
+          <button type="button" data-filtro="listas" onclick="cambiarFiltroCuentas('listas')" class="filtro-cuenta rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Disponibles para cobrar</button>
           <button type="button" data-filtro="solicitadas" onclick="cambiarFiltroCuentas('solicitadas')" class="filtro-cuenta rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Solicitaron cuenta</button>
           <button type="button" data-filtro="llevar" onclick="cambiarFiltroCuentas('llevar')" class="filtro-cuenta rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Para llevar</button>
           <button type="button" data-filtro="cobradas" onclick="cambiarFiltroCuentas('cobradas')" class="filtro-cuenta rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-100">Cobros recientes</button>
@@ -80,5 +154,6 @@
   <script src="../js/tiempo-real.js"></script>
   <script src="../js/personal-auth.js"></script>
   <script src="../js/caja.js"></script>
+  <script src="../js/turnos-caja.js"></script>
 </body>
 </html>

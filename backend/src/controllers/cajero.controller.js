@@ -1,4 +1,5 @@
 const { cajeroPool } = require('../config/db');
+const { createHash } = require('node:crypto');
 const { mapMetodoPago } = require('./pedidos.controller');
 const eventEmitter = require('../utils/eventEmitter');
 
@@ -8,6 +9,114 @@ function normalizar(valor) {
 
 function numero(valor) {
   return Number(valor || 0);
+}
+
+// El cajero solo puede registrar los metodos admitidos por la BD.
+// La normalizacion admite las etiquetas que ya envia Frontend/js/caja.js.
+const METODOS_CAJA = Object.freeze({
+  efectivo: 'efectivo',
+  yape: 'yape',
+  plin: 'plin',
+  'tarjeta credito': 'tarjeta_credito',
+  'tarjeta de credito': 'tarjeta_credito',
+  'tarjeta debito': 'tarjeta_debito',
+  'tarjeta de debito': 'tarjeta_debito',
+});
+
+function validarMetodoPagoCaja(valor) {
+  if (typeof valor !== 'string') {
+    throw new Error('Debes seleccionar un metodo de pago valido.');
+  }
+  const clave = valor.trim().toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_\s-]+/g, ' ');
+  const metodo = Object.prototype.hasOwnProperty.call(METODOS_CAJA, clave)
+    ? METODOS_CAJA[clave]
+    : null;
+  if (!metodo) {
+    throw new Error('Metodo de pago invalido. Elige efectivo, Yape, Plin, tarjeta de credito o tarjeta de debito.');
+  }
+  return metodo;
+}
+
+// La referencia es una constancia introducida por el cajero, NO una
+// verificacion automatica con Yape, Plin o un procesador de tarjetas.
+function validarReferenciaPagoCaja(body, metodo) {
+  if (metodo === 'efectivo') return null;
+  const valor = body.referencia ?? body.codigo_aprobacion;
+  if (typeof valor !== 'string') {
+    throw new Error('Los pagos digitales y con tarjeta requieren una referencia de operacion.');
+  }
+  const referencia = valor.trim();
+  if (referencia.length < 3 || referencia.length > 100 || /[\u0000-\u001f\u007f]/.test(referencia)) {
+    throw new Error('Ingresa una referencia de operacion valida (3 a 100 caracteres, sin saltos de linea).');
+  }
+  return referencia;
+}
+
+// Si el cliente envia una seleccion, no aceptamos una lista vacia ni IDs
+// invalidos: eso impediria convertir por accidente el cobro en uno total.
+function validarDetallesSolicitadosCaja(body) {
+  const seleccion = body.detalles ?? body.items;
+  if (seleccion === undefined) return [];
+  if (!Array.isArray(seleccion) || seleccion.length === 0) {
+    throw new Error('Selecciona al menos un producto para cobrar.');
+  }
+  const ids = seleccion.map((detalle) => Number(detalle?.id_detalle_producto ?? detalle?.id));
+  if (ids.some((id) => !Number.isSafeInteger(id) || id <= 0)) {
+    throw new Error('La seleccion contiene identificadores de producto invalidos.');
+  }
+  if (new Set(ids).size !== ids.length) {
+    throw new Error('La seleccion contiene productos duplicados.');
+  }
+  return ids;
+}
+
+// Los importes de PostgreSQL son NUMERIC(12,2). Trabajamos en centavos
+// enteros para evitar errores de coma flotante (ej. 0.1 + 0.2).
+const MAX_CENTAVOS_PAGO_CAJA = 999999999999; // NUMERIC(12,2)
+
+function centavosPagoCaja(valor, etiqueta) {
+  if (typeof valor !== 'string' && typeof valor !== 'number') {
+    throw new Error(`${etiqueta} debe ser un importe valido, con hasta dos decimales.`);
+  }
+  const texto = String(valor).trim();
+  if (!/^\d+(?:\.\d{1,2})?$/.test(texto)) {
+    throw new Error(`${etiqueta} debe ser un importe valido, con hasta dos decimales.`);
+  }
+  const [unidades, decimales = ''] = texto.split('.');
+  const total = Number(unidades) * 100 + Number(decimales.padEnd(2, '0'));
+  if (!Number.isSafeInteger(total) || total > MAX_CENTAVOS_PAGO_CAJA) {
+    throw new Error(`${etiqueta} supera el importe maximo permitido.`);
+  }
+  return total;
+}
+
+function importePagoCaja(centavos) {
+  return `${Math.floor(centavos / 100)}.${String(centavos % 100).padStart(2, '0')}`;
+}
+
+// La cuenta y su monto se calculan con datos de PostgreSQL, no con los
+// subtotales enviados por el navegador. El servidor decide el vuelto final.
+function validarEfectivoRecibidoCaja(body, metodo, montoCentavos) {
+  const recibido = body.monto_recibido ?? body.montoRecibido;
+  if (metodo !== 'efectivo') {
+    if (recibido !== null && recibido !== undefined) {
+      throw new Error('El monto recibido solo corresponde a pagos en efectivo.');
+    }
+    return { monto_recibido: null, vuelto: '0.00' };
+  }
+  if (recibido === null || recibido === undefined || recibido === '') {
+    throw new Error('Debes ingresar el efectivo recibido antes de registrar el cobro.');
+  }
+  const recibidoCentavos = centavosPagoCaja(recibido, 'El efectivo recibido');
+  if (recibidoCentavos < montoCentavos) {
+    throw new Error('El efectivo recibido no alcanza para cubrir el monto seleccionado.');
+  }
+  return {
+    monto_recibido: importePagoCaja(recibidoCentavos),
+    vuelto: importePagoCaja(recibidoCentavos - montoCentavos),
+  };
 }
 
 let esquemaCajaListo = false;
@@ -102,7 +211,14 @@ async function cargarCuentasPendientes(client = cajeroPool) {
               p.nombre_cliente,
               p.tipo_pedido,
               p.estado AS estado_pedido,
-              COALESCE(SUM(CASE WHEN pg.estado_pago = 'pagado' THEN dpg.monto ELSE 0 END), 0) AS monto_pagado
+              COALESCE(SUM(CASE WHEN pg.estado_pago = 'pagado' THEN dpg.monto ELSE 0 END), 0) AS monto_pagado,
+              COALESCE((SELECT SUM(sd.monto_asignado) FROM public.subcuenta_detalle sd
+                         WHERE sd.id_detalle_producto = dp.id_detalle_producto), 0) AS monto_asignado,
+              COALESCE((SELECT SUM(dpg2.monto)
+                          FROM public.detalle_pago dpg2
+                          JOIN public.pagos pg2 ON pg2.id_pago = dpg2.id_pago
+                         WHERE dpg2.id_detalle_producto = dp.id_detalle_producto
+                           AND pg2.id_subcuenta IS NOT NULL AND pg2.estado_pago = 'pagado'), 0) AS monto_pagado_subcuentas
        FROM detalle_producto dp
        INNER JOIN pedidos p ON p.id_pedido = dp.id_pedido
        LEFT JOIN platos pl ON pl.id_plato = dp.id_plato
@@ -121,6 +237,8 @@ async function cargarCuentasPendientes(client = cajeroPool) {
 
     const detallesMap = detalles.rows.map((d) => {
       const pendiente = numero(d.subtotal) - numero(d.monto_pagado);
+      const reservadoPendiente = Math.max(numero(d.monto_asignado) - numero(d.monto_pagado_subcuentas), 0);
+      const libre = Math.max(pendiente - reservadoPendiente, 0);
       const esLlevar = normalizar(d.tipo_pedido) === 'llevar';
       const puedePagarse = d.estado_pedido === 'entregado' || (esLlevar && d.estado_pedido === 'listo');
       return {
@@ -130,6 +248,8 @@ async function cargarCuentasPendientes(client = cajeroPool) {
         subtotal: numero(d.subtotal),
         monto_pagado: numero(d.monto_pagado),
         monto_pendiente: pendiente,
+        monto_libre: libre,
+        monto_reservado: reservadoPendiente,
         puede_pagarse: puedePagarse,
       };
     });
@@ -231,14 +351,18 @@ async function obtenerPendientesCuenta(client, idCuenta) {
             dp.subtotal,
             p.tipo_pedido,
             p.estado AS estado_pedido,
-            dp.subtotal - COALESCE(SUM(CASE WHEN pg.estado_pago = 'pagado' THEN dpg.monto ELSE 0 END), 0) AS pendiente
+            dp.subtotal - COALESCE(SUM(CASE WHEN pg.estado_pago = 'pagado' AND pg.id_subcuenta IS NULL THEN dpg.monto ELSE 0 END), 0)
+              - COALESCE((SELECT SUM(sd.monto_asignado) FROM public.subcuenta_detalle sd
+                           WHERE sd.id_detalle_producto = dp.id_detalle_producto), 0) AS pendiente
      FROM detalle_producto dp
      INNER JOIN pedidos p ON p.id_pedido = dp.id_pedido
      LEFT JOIN detalle_pago dpg ON dpg.id_detalle_producto = dp.id_detalle_producto
      LEFT JOIN pagos pg ON pg.id_pago = dpg.id_pago
      WHERE p.id_grupo_mesa = $1 AND p.estado <> 'cancelado'
      GROUP BY dp.id_detalle_producto, p.tipo_pedido, p.estado
-     HAVING dp.subtotal - COALESCE(SUM(CASE WHEN pg.estado_pago = 'pagado' THEN dpg.monto ELSE 0 END), 0) > 0
+     HAVING dp.subtotal - COALESCE(SUM(CASE WHEN pg.estado_pago = 'pagado' AND pg.id_subcuenta IS NULL THEN dpg.monto ELSE 0 END), 0)
+              - COALESCE((SELECT SUM(sd.monto_asignado) FROM public.subcuenta_detalle sd
+                           WHERE sd.id_detalle_producto = dp.id_detalle_producto), 0) > 0
      ORDER BY dp.id_detalle_producto`,
     [cuenta.rows[0].id_grupo_mesa]
   );
@@ -281,33 +405,238 @@ function validarComprobante(body) {
   return { tipo, dni, ruc: null, razon_social: null };
 }
 
-async function registrarPago(req, res) {
-  const client = await cajeroPool.connect();
-  try {
-    await asegurarEsquemaCaja(client);
-    const idCuenta = Number(req.params.id || req.body.id_cuenta);
-    if (!idCuenta) return res.status(400).json({ ok: false, message: 'Cuenta invalida.' });
+// COMMIT 08: la clave identifica una operacion logica de pago, no cada clic.
+// Se envia desde caja.js y debe cumplir la restriccion SQL del commit 07.
+function validarClaveIdempotenciaCaja(body) {
+  const clave = body.idempotency_key;
+  if (typeof clave !== 'string' || clave.length < 16 || clave.length > 100 ||
+      clave !== clave.trim() || /[\u0000-\u001f\u007f]/.test(clave)) {
+    throw new Error('El cobro requiere una clave de idempotencia valida (16 a 100 caracteres). Actualiza la pantalla de Caja.');
+  }
+  return clave;
+}
 
-    const comprobante = validarComprobante(req.body || {});
-    const metodo = mapMetodoPago(req.body.metodo_pago || req.body.metodoPago);
-    const idsSolicitados = Array.from(new Set((req.body.detalles || req.body.items || [])
-      .map((d) => Number(d.id_detalle_producto || d.id))
-      .filter(Boolean)));
+// Canoniza todos los datos que definen el cobro. El monto y los subtotales
+// enviados por el navegador NO forman parte de la huella: se calculan en BD.
+function datosCanonicosPagoCaja(body, idCuenta, idCajero, metodo, referencia, comprobante, idsSolicitados) {
+  const efectivo = validarEfectivoRecibidoCaja(body, metodo, 0);
+  return {
+    id_cuenta: idCuenta,
+    id_cajero: idCajero,
+    metodo_pago: metodo,
+    referencia,
+    productos: idsSolicitados.length ? [...idsSolicitados].sort((a, b) => a - b) : null,
+    monto_recibido: efectivo.monto_recibido,
+    tipo_comprobante: comprobante.tipo,
+    dni: comprobante.dni,
+    ruc: comprobante.ruc,
+    razon_social: comprobante.razon_social,
+    pagado_por: String(body.pagado_por || 'Cliente').trim() || 'Cliente',
+    mesa_pagadora: body.mesa_pagadora == null || body.mesa_pagadora === '' ? null : String(body.mesa_pagadora),
+    notas: body.notas == null || body.notas === '' ? 'Pago registrado por Caja' : String(body.notas),
+  };
+}
+
+function huellaPagoCaja(datos) {
+  return createHash('sha256').update(JSON.stringify(datos)).digest('hex');
+}
+
+// La misma consulta sirve al pago nuevo y a una recuperacion tras perder
+// la respuesta HTTP. Siempre mostramos el saldo actualmente registrado.
+async function saldoPendienteGrupoCaja(client, idGrupoMesa) {
+  const saldo = await client.query(
+    `SELECT COALESCE(SUM(pendiente), 0) AS saldo
+     FROM (
+       SELECT dp.id_detalle_producto,
+              dp.subtotal - COALESCE(SUM(CASE WHEN pg.estado_pago = 'pagado' THEN dpg.monto ELSE 0 END), 0) AS pendiente
+       FROM detalle_producto dp
+       INNER JOIN pedidos p ON p.id_pedido = dp.id_pedido
+       LEFT JOIN detalle_pago dpg ON dpg.id_detalle_producto = dp.id_detalle_producto
+       LEFT JOIN pagos pg ON pg.id_pago = dpg.id_pago
+       WHERE p.id_grupo_mesa = $1 AND p.estado <> 'cancelado'
+       GROUP BY dp.id_detalle_producto
+     ) x
+     WHERE pendiente > 0`,
+    [idGrupoMesa]
+  );
+  return numero(saldo.rows[0]?.saldo);
+}
+
+async function buscarPagoIdempotenteCaja(client, clave) {
+  const resultado = await client.query(
+    `SELECT pg.*, c.id_grupo_mesa,
+            co.tipo_comprobante AS comprobante_tipo,
+            co.dni AS comprobante_dni,
+            co.ruc AS comprobante_ruc,
+            co.razon_social AS comprobante_razon_social
+       FROM pagos pg
+       INNER JOIN cuentas c ON c.id_cuenta = pg.id_cuenta
+       LEFT JOIN comprobantes co ON co.id_pago = pg.id_pago
+      WHERE pg.idempotency_key = $1
+      LIMIT 1`,
+    [clave]
+  );
+  return resultado.rows[0] || null;
+}
+
+async function registrarPago(req, res) {
+  let client;
+  try {
+    client = await cajeroPool.connect();
+    await asegurarEsquemaCaja(client);
+    const body = req.body || {};
+    const idCuenta = Number(req.params.id || body.id_cuenta);
+    const idCajero = Number(req.personal?.id_trabajador);
+    const idSubcuenta = req.params.idSubcuenta === undefined ? null : Number(req.params.idSubcuenta);
+    if (idSubcuenta !== null && (!Number.isSafeInteger(idSubcuenta) || idSubcuenta <= 0 ||
+        !/^\d+$/.test(String(req.params.idSubcuenta)))) {
+      return res.status(400).json({ ok: false, message: 'Participante invalido.' });
+    }
+    if (!Number.isSafeInteger(idCuenta) || idCuenta <= 0) {
+      return res.status(400).json({ ok: false, message: 'Cuenta invalida.' });
+    }
+    if (!Number.isSafeInteger(idCajero) || idCajero <= 0) {
+      return res.status(401).json({ ok: false, message: 'Sesion de cajero invalida.' });
+    }
+
+    // Diferenciamos errores de validacion de fallos de red/BD. Ante un error
+    // incierto el cliente debe conservar su clave, nunca iniciar otro cobro.
+    let comprobante, metodo, referencia, idsSolicitados, clave, canonicos;
+    try {
+      comprobante = validarComprobante(body);
+      metodo = validarMetodoPagoCaja(body.metodo_pago ?? body.metodoPago);
+      referencia = validarReferenciaPagoCaja(body, metodo);
+      idsSolicitados = validarDetallesSolicitadosCaja(body);
+      clave = validarClaveIdempotenciaCaja(body);
+      canonicos = datosCanonicosPagoCaja(
+        body, idCuenta, idCajero, metodo, referencia, comprobante, idsSolicitados
+      );
+    } catch (error) {
+      error.status = 400;
+      throw error;
+    }
+    // No mezclar reintentos entre un cobro normal y una persona.
+    if (idSubcuenta !== null) canonicos.id_subcuenta = idSubcuenta;
+    const huella = huellaPagoCaja(canonicos);
 
     await client.query('BEGIN');
+    // PostgreSQL libera este bloqueo al COMMIT/ROLLBACK. Dos solicitudes
+    // simultaneas con la misma clave se serializan antes de consultar pagos.
+    // El indice UNIQUE del commit 07 es la defensa definitiva en la BD.
+    await client.query(
+      'SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))',
+      [clave]
+    );
+
+    const previo = await buscarPagoIdempotenteCaja(client, clave);
+    if (previo) {
+      const coincide = previo.idempotency_hash === huella &&
+        Number(previo.id_cuenta) === idCuenta && Number(previo.id_cajero) === idCajero &&
+        (idSubcuenta === null ? previo.id_subcuenta == null : Number(previo.id_subcuenta) === idSubcuenta);
+      if (!coincide || previo.estado_pago !== 'pagado') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({
+          ok: false,
+          code: 'IDEMPOTENCY_CONFLICT',
+          message: 'Esta clave ya se utilizo en otra operacion. Revisa el historial antes de intentar un nuevo cobro.',
+        });
+      }
+
+      const saldoPendiente = await saldoPendienteGrupoCaja(client, previo.id_grupo_mesa);
+      await client.query('COMMIT');
+      // Recuperamos el mismo pago; nunca repetimos INSERTs ni eventos.
+      return res.status(200).json({
+        ok: true,
+        repetido: true,
+        message: 'El pago ya estaba registrado. No se creo un segundo cobro.',
+        data: {
+          ...previo,
+          saldo_pendiente: saldoPendiente,
+          cajero: req.personal.nombre,
+          comprobante: {
+            tipo: previo.comprobante_tipo,
+            dni: previo.comprobante_dni,
+            ruc: previo.comprobante_ruc,
+            razon_social: previo.comprobante_razon_social,
+          },
+        },
+      });
+    }
+
+    // Commit 13: un cobro nuevo requiere un turno abierto del cajero del JWT.
+    // Se consulta DESPUES de la recuperacion idempotente para permitir que
+    // un reintento de un pago ya realizado responda incluso si cerro el turno.
+    // FOR SHARE mantiene el turno abierto durante la transaccion y evita
+    // la carrera entre un pago nuevo y el futuro cierre de turno.
+    const turnoResultado = await client.query(
+      `SELECT id_turno FROM public.turnos_caja
+       WHERE id_cajero = $1 AND estado = 'abierto'
+       FOR SHARE`,
+      [idCajero]
+    );
+    const idTurno = turnoResultado.rows[0]?.id_turno;
+    if (!idTurno) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        ok: false,
+        code: 'TURNO_CAJA_REQUERIDO',
+        message: 'Debes abrir tu turno de caja antes de registrar un cobro.',
+      });
+    }
+
     const { cuenta, detalles } = await obtenerPendientesCuenta(client, idCuenta);
     if (!cuenta) {
       await client.query('ROLLBACK');
       return res.status(404).json({ ok: false, message: 'Cuenta no encontrada.' });
     }
-    if (cuenta.estado !== 'pendiente' || !detalles.length) {
+    if (cuenta.estado !== 'pendiente' || (idSubcuenta === null && !detalles.length)) {
       await client.query('ROLLBACK');
-      return res.status(400).json({ ok: false, message: 'Esta cuenta ya no tiene saldo pendiente.' });
+      return res.status(400).json({ ok: false, message: 'Esta cuenta ya no tiene saldo disponible.' });
     }
 
-    let seleccionados = detalles;
+    let detallesDisponibles = detalles;
+    if (idSubcuenta !== null) {
+      // Misma transaccion, cuenta bloqueada en obtenerPendientesCuenta.
+      // Las asignaciones se consultan desde PostgreSQL, nunca sus importes
+      // desde el navegador. Pago parcial de un plato compartido = asignado.
+      const persona = await client.query(`
+        SELECT id_subcuenta, estado FROM public.subcuentas
+         WHERE id_cuenta = $1 AND id_subcuenta = $2 FOR UPDATE
+      `, [idCuenta, idSubcuenta]);
+      if (!persona.rows.length) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ ok: false, message: 'Persona no encontrada en esta cuenta.' });
+      }
+      if (persona.rows[0].estado !== 'pendiente') {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ ok: false, message: 'La persona ya esta pagada o anulada.' });
+      }
+      const asignaciones = await client.query(`
+        SELECT sd.id_detalle_producto, sd.monto_asignado, p.tipo_pedido,
+               p.estado AS estado_pedido,
+               (sd.monto_asignado - COALESCE((
+                 SELECT SUM(dpg.monto) FROM public.detalle_pago dpg
+                 JOIN public.pagos pg ON pg.id_pago = dpg.id_pago
+                WHERE dpg.id_detalle_producto = sd.id_detalle_producto
+                  AND pg.id_subcuenta = $1 AND pg.estado_pago IN ('pagado', 'pendiente')
+               ), 0))::NUMERIC(12,2) AS pendiente
+          FROM public.subcuenta_detalle sd
+          JOIN public.detalle_producto dp ON dp.id_detalle_producto = sd.id_detalle_producto
+          JOIN public.pedidos p ON p.id_pedido = dp.id_pedido
+         WHERE sd.id_subcuenta = $1 AND p.id_grupo_mesa = $2
+           AND p.estado <> 'cancelado'
+         ORDER BY sd.id_detalle_producto
+      `, [idSubcuenta, cuenta.id_grupo_mesa]);
+      detallesDisponibles = asignaciones.rows.filter(d => Number(d.pendiente) > 0);
+      if (!detallesDisponibles.length) {
+        await client.query('ROLLBACK');
+        return res.status(409).json({ ok: false, message: 'La persona no tiene productos pendientes por pagar.' });
+      }
+    }
+
+    let seleccionados = detallesDisponibles;
     if (idsSolicitados.length) {
-      seleccionados = detalles.filter((d) => idsSolicitados.includes(Number(d.id_detalle_producto)));
+      seleccionados = detallesDisponibles.filter((d) => idsSolicitados.includes(Number(d.id_detalle_producto)));
       if (seleccionados.length !== idsSolicitados.length) {
         await client.query('ROLLBACK');
         return res.status(400).json({ ok: false, message: 'Uno o mas productos seleccionados ya fueron pagados o no pertenecen a esta cuenta.' });
@@ -324,42 +653,64 @@ async function registrarPago(req, res) {
     }
 
     if (!idsSolicitados.length) {
-      const pendientesNoHabilitados = detalles.filter((d) => !detallePuedePagarse(d));
+      const pendientesNoHabilitados = detallesDisponibles.filter((d) => !detallePuedePagarse(d));
       if (pendientesNoHabilitados.length) {
         await client.query('ROLLBACK');
         return res.status(400).json({ ok: false, message: 'La cuenta aun tiene productos que no estan habilitados para cobro.' });
       }
     }
 
-    const monto = seleccionados.reduce((s, d) => s + numero(d.pendiente), 0);
-    if (monto <= 0) {
+    const montoCentavos = seleccionados.reduce(
+      (suma, detalle) => suma + centavosPagoCaja(detalle.pendiente, 'Saldo del producto'), 0
+    );
+    if (montoCentavos <= 0) {
       await client.query('ROLLBACK');
       return res.status(400).json({ ok: false, message: 'No existe monto pendiente para registrar.' });
     }
+    if (montoCentavos > MAX_CENTAVOS_PAGO_CAJA) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ ok: false, message: 'El monto del pago supera el limite permitido.' });
+    }
 
-    const esTotal = seleccionados.length === detalles.length;
+    const monto = importePagoCaja(montoCentavos);
+    let efectivo;
+    try {
+      efectivo = validarEfectivoRecibidoCaja(body, metodo, montoCentavos);
+    } catch (error) {
+      error.status = 400;
+      throw error;
+    }
+    const esTotal = seleccionados.length === detallesDisponibles.length;
     const pago = await client.query(
       `INSERT INTO pagos
-        (id_cuenta, metodo_pago, monto, pagado_por, estado_pago, referencia, tipo_pago, mesa_pagadora, notas, id_cajero)
-       VALUES ($1, $2, $3, $4, 'pagado', $5, $6, $7, $8, $9)
+        (id_cuenta, metodo_pago, monto, pagado_por, estado_pago, referencia, tipo_pago,
+         mesa_pagadora, notas, id_cajero, monto_recibido, vuelto,
+         idempotency_key, idempotency_hash, id_turno, id_subcuenta)
+       VALUES ($1, $2, $3, $4, 'pagado', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING *`,
       [
         idCuenta,
         metodo,
         monto,
-        String(req.body.pagado_por || 'Cliente').trim() || 'Cliente',
-        req.body.referencia || req.body.codigo_aprobacion || null,
+        canonicos.pagado_por,
+        referencia,
         esTotal ? 'total' : 'parcial',
-        req.body.mesa_pagadora || null,
-        req.body.notas || 'Pago registrado por Caja',
-        req.personal.id_trabajador,
+        canonicos.mesa_pagadora,
+        canonicos.notas,
+        idCajero,
+        efectivo.monto_recibido,
+        efectivo.vuelto,
+        clave,
+        huella,
+        idTurno,
+        idSubcuenta,
       ]
     );
 
     for (const item of seleccionados) {
       await client.query(
         `INSERT INTO detalle_pago (id_pago, id_detalle_producto, monto) VALUES ($1, $2, $3)`,
-        [pago.rows[0].id_pago, item.id_detalle_producto, numero(item.pendiente)]
+        [pago.rows[0].id_pago, item.id_detalle_producto, item.pendiente]
       );
     }
 
@@ -369,23 +720,20 @@ async function registrarPago(req, res) {
       [pago.rows[0].id_pago, comprobante.tipo, comprobante.dni, comprobante.ruc, comprobante.razon_social]
     );
 
-    const saldo = await client.query(
-      `SELECT COALESCE(SUM(pendiente), 0) AS saldo
-       FROM (
-         SELECT dp.id_detalle_producto,
-                dp.subtotal - COALESCE(SUM(CASE WHEN pg.estado_pago = 'pagado' THEN dpg.monto ELSE 0 END), 0) AS pendiente
-         FROM detalle_producto dp
-         INNER JOIN pedidos p ON p.id_pedido = dp.id_pedido
-         LEFT JOIN detalle_pago dpg ON dpg.id_detalle_producto = dp.id_detalle_producto
-         LEFT JOIN pagos pg ON pg.id_pago = dpg.id_pago
-         WHERE p.id_grupo_mesa = $1 AND p.estado <> 'cancelado'
-         GROUP BY dp.id_detalle_producto
-       ) x
-       WHERE pendiente > 0`,
-      [cuenta.id_grupo_mesa]
-    );
-
-    const saldoPendiente = numero(saldo.rows[0]?.saldo);
+    if (idSubcuenta !== null) {
+      const resumenPersona = await client.query(`
+        SELECT total_asignado, total_pendiente
+          FROM public.v_subcuentas_resumen WHERE id_subcuenta = $1
+      `, [idSubcuenta]);
+      const resumen = resumenPersona.rows[0];
+      if (resumen && Number(resumen.total_asignado) > 0 && Number(resumen.total_pendiente) === 0) {
+        // El trigger del commit 17 confirma que el total pagado coincide
+        // exactamente con el total asignado antes de cambiar el estado.
+        await client.query(`UPDATE public.subcuentas SET estado = 'pagada'
+                             WHERE id_subcuenta = $1 AND estado = 'pendiente'`, [idSubcuenta]);
+      }
+    }
+    const saldoPendiente = await saldoPendienteGrupoCaja(client, cuenta.id_grupo_mesa);
     if (saldoPendiente <= 0) {
       await client.query(`UPDATE cuentas SET estado = 'pagada' WHERE id_cuenta = $1`, [idCuenta]);
       await client.query(
@@ -406,13 +754,42 @@ async function registrarPago(req, res) {
     };
     eventEmitter.emitPagoRegistrado(respuesta);
     eventEmitter.emitCuentaActualizada({ id_cuenta: idCuenta, id_grupo_mesa: cuenta.id_grupo_mesa, saldo_pendiente: saldoPendiente });
-    res.status(201).json({ ok: true, message: 'Pago registrado por Caja.', data: respuesta });
+    res.status(201).json({ ok: true, repetido: false, message: 'Pago registrado por Caja.', data: respuesta });
   } catch (error) {
-    try { await client.query('ROLLBACK'); } catch (_) {}
+    if (client) {
+      try { await client.query('ROLLBACK'); } catch (_) {}
+    }
     console.error('Error al registrar pago en caja:', error);
-    res.status(400).json({ ok: false, message: error.message || 'No se pudo registrar el pago.' });
+    if (error.code === '23505' && error.constraint === 'ux_pagos_idempotency_key') {
+      return res.status(409).json({
+        ok: false, code: 'IDEMPOTENCY_CONFLICT',
+        message: 'Ya existe un pago con esa clave. Reintenta la misma operacion y consulta el historial.',
+      });
+    }
+    if (['23514', '23503'].includes(error.code)) {
+      return res.status(409).json({
+        ok: false, code: 'SALDO_RESERVADO_O_NO_DISPONIBLE',
+        message: 'El importe no puede cobrarse porque esta reservado o ya fue pagado. Actualiza la cuenta.',
+      });
+    }
+    if (['42P01', '42703'].includes(error.code)) {
+      return res.status(503).json({
+        ok: false, code: 'MIGRACION_TURNOS_PENDIENTE',
+        message: 'La estructura de turnos no esta lista. Aplica la migracion del commit 12.',
+      });
+    }
+    if (error.status === 400) {
+      return res.status(400).json({ ok: false, message: error.message });
+    }
+    // Nunca responder 400 por un COMMIT de resultado incierto: el navegador
+    // conservara la clave para recuperar la operacion en otro intento.
+    return res.status(500).json({
+      ok: false,
+      code: 'PAGO_NO_CONFIRMADO',
+      message: 'No se pudo confirmar el resultado del cobro. Reintenta con la misma clave o consulta el historial.',
+    });
   } finally {
-    client.release();
+    if (client) client.release();
   }
 }
 
@@ -523,6 +900,8 @@ async function obtenerPagosSinCerrar(client, idCajero, bloquear = false) {
      LEFT JOIN cierre_caja_pagos ccp ON ccp.id_pago = pg.id_pago
      WHERE pg.estado_pago = 'pagado'
        AND pg.id_cajero = $1
+       -- Los pagos con turno se arquean en el modulo nuevo, NO en el cierre historico.
+       AND pg.id_turno IS NULL
        AND ccp.id_pago IS NULL
      ORDER BY pg.fecha_pago ASC${suffix}`,
     [idCajero]
