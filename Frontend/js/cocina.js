@@ -4,6 +4,7 @@ let pedidos = [];
 let filtroActual = "todos";
 let busquedaCocina = "";
 let tipoCocina = "todos";
+let ordenCocina = "antiguos";
 let sonidoActivo = true;
 
 function normalizar(valor) {
@@ -119,7 +120,8 @@ async function mostrarPedidos() {
  const pedidosFiltrados = pedidosActivosCocina()
   .filter(coincideFiltro)
   .filter(coincideBusquedaCocina)
-  .filter(coincideTipoCocina);
+  .filter(coincideTipoCocina)
+  .sort(compararPedidosCocina);
   const horaActual = new Date().toLocaleTimeString();
 
   if (pedidosFiltrados.length === 0) {
@@ -236,6 +238,24 @@ function coincideTipoCocina(pedido) {
   return tipoCocina === "llevar"
     ? paraLlevar
     : !paraLlevar;
+}
+function cambiarOrdenCocina(orden) {
+  ordenCocina = orden;
+  mostrarPedidos();
+}
+
+function compararPedidosCocina(a, b) {
+  const fechaA = Date.parse(a.fechaISO);
+  const fechaB = Date.parse(b.fechaISO);
+
+  // Los pedidos sin fecha válida quedan al final.
+  if (Number.isNaN(fechaA) && Number.isNaN(fechaB)) return 0;
+  if (Number.isNaN(fechaA)) return 1;
+  if (Number.isNaN(fechaB)) return -1;
+
+  return ordenCocina === "recientes"
+    ? fechaB - fechaA
+    : fechaA - fechaB;
 }
 function renderPedido(pedido) {
   const productos = pedido.productos || pedido.items || [];
