@@ -491,8 +491,26 @@ async function cambiarEstado(idPedido, nuevoEstado) {
   }
 }
 
-function recargarCocina() {
-  mostrarPedidos();
+async function recargarCocina() {
+  const boton = document.getElementById("btn-actualizar-cocina");
+
+  if (!boton || boton.disabled) return;
+
+  const contenidoOriginal = boton.innerHTML;
+
+  boton.disabled = true;
+  boton.textContent = "Actualizando...";
+  boton.setAttribute("aria-busy", "true");
+  boton.classList.add("opacity-60", "cursor-wait");
+
+  try {
+    await mostrarPedidos();
+  } finally {
+    boton.disabled = false;
+    boton.innerHTML = contenidoOriginal;
+    boton.removeAttribute("aria-busy");
+    boton.classList.remove("opacity-60", "cursor-wait");
+  }
 }
 
 function toggleSonido() {
