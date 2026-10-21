@@ -2,6 +2,7 @@ if (window.MENUGO_PERSONAL_BLOQUEADO) { throw new Error('Acceso bloqueado. Inici
 const API_BASE = window.MENUGO_API || "http://localhost:4000/api";
 let pedidos = [];
 let filtroActual = "todos";
+let busquedaCocina = "";
 let sonidoActivo = true;
 
 function normalizar(valor) {
@@ -114,7 +115,9 @@ async function mostrarPedidos() {
     return;
   }
 
-  const pedidosFiltrados = pedidosActivosCocina().filter(coincideFiltro);
+  const pedidosFiltrados = pedidosActivosCocina()
+  .filter(coincideFiltro)
+  .filter(coincideBusquedaCocina);
   const horaActual = new Date().toLocaleTimeString();
 
   if (pedidosFiltrados.length === 0) {
@@ -191,6 +194,32 @@ function actualizarResumenCocina() {
       elemento.textContent = cantidad;
     }
   });
+}
+function buscarPedidosCocina() {
+  const campo = document.getElementById("buscar-pedido");
+  busquedaCocina = normalizar(campo.value);
+  mostrarPedidos();
+}
+
+function limpiarBusquedaCocina() {
+  document.getElementById("buscar-pedido").value = "";
+  busquedaCocina = "";
+  mostrarPedidos();
+}
+
+function coincideBusquedaCocina(pedido) {
+  if (!busquedaCocina) return true;
+
+  const codigo = normalizar(
+    pedido.codigo || `PED-${pedido.id_pedido || pedido.id}`
+  );
+
+  const mesa = normalizar(pedido.mesa);
+  const numeroBuscado = busquedaCocina.replace(/^mesa\s+/, "");
+  const numeroMesa = mesa.replace(/^mesa\s+/, "");
+
+  return codigo.includes(busquedaCocina) ||
+    (numeroMesa !== "" && numeroMesa === numeroBuscado);
 }
 function renderPedido(pedido) {
   const productos = pedido.productos || pedido.items || [];

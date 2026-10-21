@@ -111,7 +111,31 @@
         <p id="total-listos" class="text-3xl font-black text-emerald-900">—</p>
     </div>
 </section>
-        <!-- Contenedor Principal de Pedidos -->
+        <form onsubmit="event.preventDefault(); buscarPedidosCocina();"
+    class="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
+
+    <label for="buscar-pedido"
+        class="mb-2 block text-sm font-bold text-slate-700">
+        Buscar por código o mesa
+    </label>
+
+    <div class="flex flex-wrap gap-2">
+        <input id="buscar-pedido" type="search"
+            placeholder="Ejemplo: PED-12 o Mesa 3"
+            class="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3">
+
+        <button type="submit"
+            class="rounded-xl bg-slate-900 px-4 py-3 font-bold text-white">
+            Buscar
+        </button>
+
+        <button type="button" onclick="limpiarBusquedaCocina()"
+            class="rounded-xl bg-slate-100 px-4 py-3 font-bold text-slate-700">
+            Limpiar
+        </button>
+    </div>
+</form>
+<!-- Contenedor Principal de Pedidos -->
         <main id="contenedor-pedidos" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             <!-- Los pedidos se cargan dinámicamente con cocina.js -->
         </main>
