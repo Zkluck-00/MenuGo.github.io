@@ -398,9 +398,19 @@ async function mapPedido(clientOrPool, row) {
     total_pagado: Number(row.total_pagado || 0),
     pago_completo: Number(row.total_pagado || 0) >= Number(row.total || productos.reduce((s, p) => s + p.subtotal, 0)),
     estadoPago: Number(row.total_pagado || 0) >= Number(row.total || productos.reduce((s, p) => s + p.subtotal, 0)) ? "Pagado" : "Pendiente",
-    fecha: row.fecha_creacion ? new Date(row.fecha_creacion).toLocaleDateString("es-PE") : "",
-    hora: row.fecha_creacion ? new Date(row.fecha_creacion).toLocaleTimeString("es-PE", { hour: "2-digit", minute: "2-digit" }) : "",
-    fechaISO: row.fecha_creacion,
+    fecha: row.fecha_creacion
+  ? new Date(row.fecha_creacion).toLocaleDateString("es-PE", {
+      timeZone: "America/Lima",
+    })
+  : "",
+hora: row.fecha_creacion
+  ? new Date(row.fecha_creacion).toLocaleTimeString("es-PE", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "America/Lima",
+    })
+  : "",
+fechaISO: row.fecha_creacion,
   };
 }
 
