@@ -263,62 +263,8 @@ async function resolverProducto(client, item, tipoPedido) {
   return { ...producto, precioCentavos: precioCatalogoCentavos(producto.precio) };
 }
 
-async function registrarPagoInicialSiAplica(client, pedido, body, total) {
-  const estadoPago = normalizarTexto(body.estadoPago || body.estado_pago || "");
-  const metodoPago = body.metodoPago || body.metodo_pago;
-  if (!metodoPago || estadoPago !== "pagado") return null;
-
-  let idCuenta = null;
-  if (pedido.id_grupo_mesa) {
-    idCuenta = await crearCuentaSiNoExiste(client, pedido.id_grupo_mesa);
-    await recalcularCuenta(client, pedido.id_grupo_mesa);
-  } else {
-    const grupo = await client.query(
-      `INSERT INTO grupos_mesa (nombre_grupo, mesa_principal, estado)
-       VALUES ($1, NULL, 'activo')
-       RETURNING id_grupo_mesa`,
-      [`Pedido para llevar ${pedido.id_pedido}`],
-    );
-    await client.query(
-      `UPDATE pedidos SET id_grupo_mesa = $1 WHERE id_pedido = $2`,
-      [grupo.rows[0].id_grupo_mesa, pedido.id_pedido],
-    );
-    const cuenta = await client.query(
-      `INSERT INTO cuentas (id_grupo_mesa, descripcion, tipo_cuenta, total, estado)
-       VALUES ($1, $2, 'mixta', $3, 'pendiente')
-       RETURNING id_cuenta`,
-      [grupo.rows[0].id_grupo_mesa, `Cuenta pedido llevar ${pedido.id_pedido}`, total],
-    );
-    idCuenta = cuenta.rows[0].id_cuenta;
-  }
-
-  const pago = await client.query(
-    `INSERT INTO pagos (id_cuenta, metodo_pago, monto, pagado_por, estado_pago, referencia, tipo_pago, notas)
-     VALUES ($1, $2, $3, $4, 'pagado', $5, 'total', $6)
-     RETURNING id_pago`,
-    [idCuenta, mapMetodoPago(metodoPago), total, body.nombre_cliente || body.cliente || "Cliente", body.referencia_pago || null, "Pago simulado registrado desde frontend"],
-  );
-
-  await client.query(
-    `INSERT INTO detalle_pago (id_pago, id_detalle_producto, monto)
-     SELECT $1, dp.id_detalle_producto, dp.subtotal
-     FROM detalle_producto dp
-     WHERE dp.id_pedido = $2
-     ON CONFLICT DO NOTHING`,
-    [pago.rows[0].id_pago, pedido.id_pedido],
-  );
-
-  await client.query(
-    `INSERT INTO comprobantes (id_pago, tipo_comprobante, dni, ruc, razon_social)
-     VALUES ($1, 'boleta', $2, NULL, NULL)
-     ON CONFLICT (id_pago) DO NOTHING`,
-    [pago.rows[0].id_pago, String(body.documento || "00000000").replace(/\D/g, "").padStart(8, "0").slice(0, 8)],
-  );
-
-  await client.query("UPDATE cuentas SET estado = 'pagada' WHERE id_cuenta = $1", [idCuenta]);
-
-  return pago.rows[0].id_pago;
-}
+// Un pedido creado por el cliente siempre queda pendiente de pago.
+// La confirmacion real se realiza por el Cajero; nunca desde estadoPago del navegador.
 
 async function obtenerDetallePedido(clientOrPool, idPedido) {
   const { rows } = await clientOrPool.query(
@@ -545,7 +491,21 @@ async function obtenerEstadoPedido(req, res) {
 }
 
 async function crearPedido(req, res) {
-  const client = await  (req.body.registrado_por ? meseroPool : clientePool).connect();
+  const bodyEntrada = req.body || {};
+  const rolAutenticado = normalizarTexto(req.personal?.rol);
+  const esMesero = rolAutenticado === 'mesero';
+  // El ID declarado por el navegador no concede permisos de Mesero.
+  const requierePersonal = bodyEntrada.registrado_por !== undefined &&
+    bodyEntrada.registrado_por !== null && bodyEntrada.registrado_por !== '';
+  if (requierePersonal && !esMesero) {
+    return res.status(403).json({ ok: false, message: 'Un pedido de Mesero requiere sesion de Mesero.' });
+  }
+  if (req.personal && !esMesero) {
+    return res.status(403).json({ ok: false, message: 'Este rol no registra pedidos desde el formulario de cliente.' });
+  }
+  const idMeseroVerificado = esMesero ? Number(req.personal.id_trabajador) : null;
+  const poolPedido = esMesero ? meseroPool : clientePool;
+  const client = await poolPedido.connect();
   try {
     const body = req.body || {};
     const tipoPedido = normalizarTexto(body.tipo_pedido || body.tipoConsumo || body.tipo || "mesa").includes("llevar") ? "llevar" : "mesa";
@@ -563,7 +523,7 @@ async function crearPedido(req, res) {
     const idUsuario = await asegurarUsuario(client, { ...body, tipo_pedido: tipoPedido });
     const numeroMesa = Number(body.id_mesa || String(body.mesa || "").match(/\d+/)?.[0] || 0);
 
-    if (tipoPedido === "mesa" && !body.registrado_por) {
+    if (tipoPedido === "mesa" && !esMesero) {
       await validarQrDeMesa(client, numeroMesa, body.qr_token || body.token_mesa || body.token);
     }
 
@@ -596,7 +556,7 @@ async function crearPedido(req, res) {
       `INSERT INTO pedidos (id_grupo_mesa, id_usuario, tipo_pedido, nombre_cliente, telefono_llevar, estado, registrado_por)
        VALUES ($1, $2, $3, $4, $5, 'pendiente', $6)
        RETURNING *`,
-      [idGrupoMesa, idUsuario, tipoPedido, obtenerNombreCliente(body), tipoPedido === "llevar" ? limpiarTelefono(body.telefono || body.telefono_llevar) : null, body.registrado_por || null],
+      [idGrupoMesa, idUsuario, tipoPedido, obtenerNombreCliente(body), tipoPedido === "llevar" ? limpiarTelefono(body.telefono || body.telefono_llevar) : null, idMeseroVerificado],
     );
 
     const pedido = pedidoResult.rows[0];
@@ -642,11 +602,11 @@ async function crearPedido(req, res) {
     }
 
     if (idGrupoMesa) await recalcularCuenta(client, idGrupoMesa);
-    await registrarPagoInicialSiAplica(client, pedido, body, total);
+    // El importe y el estado de pago solo los confirma Caja.
 
     await client.query("COMMIT");
 eventEmitter.emitPedidoCreado(pedido);
-    const poolUsado = req.body.registrado_por ? meseroPool : clientePool;
+    const poolUsado = poolPedido;
     const rows = await obtenerPedidoRows(poolUsado, {});
     const creado = rows.find((row) => Number(row.id_pedido) === Number(pedido.id_pedido));
     res.status(201).json({ ok: true, message: "Pedido registrado en BD", data: await mapPedido(poolUsado, creado) });
@@ -683,8 +643,11 @@ async function actualizarEstadoPedido(req, res) {
   const client = await cocinaPool.connect();
   try {
     const estado = normalizarTexto(req.body.estado);
-    const rol = normalizarTexto(req.body.rol || req.query.rol);
+    const rol = normalizarTexto(req.personal?.rol);
 
+    if (!['mesero', 'cocina', 'administrador'].includes(rol)) {
+      return res.status(403).json({ ok: false, message: 'Este rol no puede cambiar estados de pedidos.' });
+    }
     if (!ESTADOS_VALIDOS.includes(estado)) {
       return res.status(400).json({ ok: false, message: `Estado invalido. Usa: ${ESTADOS_VALIDOS.join(", ")}` });
     }

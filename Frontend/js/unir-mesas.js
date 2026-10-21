@@ -10,7 +10,7 @@ function solesUnir(valor) { return Number(valor || 0).toFixed(2); }
 function escapeHtmlUnir(valor) { return String(valor ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#039;"); }
 
 async function apiJson(url, options = {}) {
-  const response = await fetch(`${API_BASE}${url}`, { headers: { "Content-Type": "application/json", ...(options.headers || {}) }, ...options });
+  const response = await fetch(`${API_BASE}${url}`, { ...options, headers: headersAutenticadosPersonal('mesero', options.headers || {}) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.ok === false) throw new Error(data.message || data.error || "Error de servidor");
   return data;

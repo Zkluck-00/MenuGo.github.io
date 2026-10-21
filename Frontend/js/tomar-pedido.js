@@ -516,8 +516,8 @@ function crearPedidoMesero() {
 
 async function apiJsonMesero(url, options = {}) {
   const response = await fetch(`${API_BASE}${url}`, {
-    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
     ...options,
+    headers: headersAutenticadosPersonal('mesero', options.headers || {}),
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || data.ok === false)
@@ -563,7 +563,7 @@ async function confirmarPedidoMesero() {
         id_mesa: Number(mesaSeleccionadaMesero),
         nombre_cliente: `Mesa ${mesaSeleccionadaMesero}`,
         telefono: "988888888",
-        registrado_por: 2,
+        registrado_por: Number(obtenerSesionPersonal('mesero')?.id_trabajador),
         items: pedidoTemporalMesero.map(itemMeseroApi),
       }),
     });

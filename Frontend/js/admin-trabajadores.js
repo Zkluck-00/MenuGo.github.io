@@ -4,11 +4,13 @@ const ADMIN_TRABAJADORES_KEY = "menugo_admin_trabajadores";
 let sesionTrabajadoresAdmin = null;
 let todosTrabajadoresAdmin = []; 
 function apiJson(url, options = {}) {
-  return fetch(`${API_BASE}${url}`, {
-    headers: { "Content-Type": "application/json" },
-    ...options
-  }).then(res => res.json());
+  return fetchAdminProtegido(url, options).then(async (res) => {
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || data.ok === false) throw new Error(data.message || 'Error de servidor');
+    return data;
+  });
 }
+
 function leerTrabajadoresAdmin() {
   try {
     const datos = JSON.parse(localStorage.getItem(ADMIN_TRABAJADORES_KEY) || "[]");
@@ -223,7 +225,7 @@ console.log('Estado a enviar a BD:', estadoEnviar);
       method = 'PUT';
     }
     
-    const response = await fetch(url, {
+    const response = await fetchAdminProtegido(url, {
       method: method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -281,7 +283,7 @@ function limpiarFormularioTrabajadorAdmin() {
 
 async function editarTrabajadorAdmin(id) {
   try {
-    const response = await fetch(`${API_BASE}/admin/trabajadores/${id}`);
+    const response = await fetchAdminProtegido(`${API_BASE}/admin/trabajadores/${id}`);
     const data = await response.json();
     
     if (!data.ok || !data.data) {
@@ -330,7 +332,7 @@ async function eliminarTrabajadorAdmin(id) {
   if (!confirm(`¿Eliminar a ${nombre}?`)) return;
 
   try {
-    const response = await fetch(`${API_BASE}/admin/trabajadores/${id}`, {
+    const response = await fetchAdminProtegido(`${API_BASE}/admin/trabajadores/${id}`, {
       method: 'DELETE'
     });
     
@@ -478,7 +480,7 @@ cargarTrabajadoresDesdeBackend().then(trabajadores => {
 }
 async function cargarTrabajadoresDesdeBackend() {
   try {
-    const response = await fetch(`${API_BASE}/admin/trabajadores`);
+    const response = await fetchAdminProtegido(`${API_BASE}/admin/trabajadores`);
     const data = await response.json();
     
     if (data.ok && data.data) {
