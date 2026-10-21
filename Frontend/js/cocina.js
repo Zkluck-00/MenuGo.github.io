@@ -3,6 +3,7 @@ const API_BASE = window.MENUGO_API || "http://localhost:4000/api";
 let pedidos = [];
 let filtroActual = "todos";
 let busquedaCocina = "";
+let tipoCocina = "todos";
 let sonidoActivo = true;
 
 function normalizar(valor) {
@@ -115,9 +116,10 @@ async function mostrarPedidos() {
     return;
   }
 
-  const pedidosFiltrados = pedidosActivosCocina()
+ const pedidosFiltrados = pedidosActivosCocina()
   .filter(coincideFiltro)
-  .filter(coincideBusquedaCocina);
+  .filter(coincideBusquedaCocina)
+  .filter(coincideTipoCocina);
   const horaActual = new Date().toLocaleTimeString();
 
   if (pedidosFiltrados.length === 0) {
@@ -220,6 +222,20 @@ function coincideBusquedaCocina(pedido) {
 
   return codigo.includes(busquedaCocina) ||
     (numeroMesa !== "" && numeroMesa === numeroBuscado);
+}
+function filtrarTipoCocina(tipo) {
+  tipoCocina = tipo;
+  mostrarPedidos();
+}
+
+function coincideTipoCocina(pedido) {
+  if (tipoCocina === "todos") return true;
+
+  const paraLlevar = esPedidoLlevar(pedido);
+
+  return tipoCocina === "llevar"
+    ? paraLlevar
+    : !paraLlevar;
 }
 function renderPedido(pedido) {
   const productos = pedido.productos || pedido.items || [];
