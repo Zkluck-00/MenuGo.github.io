@@ -79,6 +79,9 @@ function prepararCaja({
           const previo = pagos.find((p) => p.idempotency_key === params[0]);
           return { rows: previo ? [{ ...previo, id_grupo_mesa: 2, comprobante_tipo: 'boleta', comprobante_dni: '12345678' }] : [] };
         }
+        if (/SELECT id_turno FROM public\.turnos_caja/.test(texto)) {
+          return { rows: [{ id_turno: 777 }] };
+        }
         if (/SELECT id_cuenta, id_grupo_mesa, estado, total FROM cuentas/.test(texto)) {
           return { rows: cuentaExiste ? [{ id_cuenta: 7, id_grupo_mesa: 2, estado, total: '500.00' }] : [] };
         }

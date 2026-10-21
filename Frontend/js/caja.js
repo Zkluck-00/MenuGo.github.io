@@ -235,6 +235,9 @@ function renderPagosRecientesCaja() {
 }
 
 function abrirCobroCaja(idCuenta) {
+  if (window.MENUGO_TURNO_CAJA_ABIERTO === false) {
+    return alert('Debes abrir tu turno de caja antes de registrar cobros.');
+  }
   if (intentoPagoCajaPendiente && intentoPagoCajaPendiente.idCuenta !== String(idCuenta)) {
     return alert('Primero confirma el resultado del cobro anterior antes de abrir otra cuenta.');
   }
@@ -469,6 +472,9 @@ function actualizarComprobanteCaja() {
 
 async function registrarPagoCaja(event, idCuenta) {
   event.preventDefault();
+  if (window.MENUGO_TURNO_CAJA_ABIERTO === false) {
+    return alert('Abre tu turno de caja antes de registrar el cobro.');
+  }
   const items = itemsCobroCaja();
   const total = totalSeleccionadoCaja();
   if (!items.length || total <= 0) return alert('Selecciona al menos un producto pendiente.');
@@ -535,6 +541,7 @@ async function registrarPagoCaja(event, idCuenta) {
         : 'Pago registrado correctamente por Caja.';
     mostrarNotificacionCaja(mensaje);
     await recargarCaja();
+    if (typeof window.actualizarTurnoCaja === 'function') await window.actualizarTurnoCaja();
   } catch (error) {
     // HTTP 400/404: el backend rechazo la operacion sin registrarla.
     // Sin respuesta (red) o HTTP 409: resultado incierto, conservar clave y datos.

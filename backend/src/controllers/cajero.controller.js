@@ -540,6 +540,27 @@ async function registrarPago(req, res) {
       });
     }
 
+    // Commit 13: un cobro nuevo requiere un turno abierto del cajero del JWT.
+    // Se consulta DESPUES de la recuperacion idempotente para permitir que
+    // un reintento de un pago ya realizado responda incluso si cerro el turno.
+    // FOR SHARE mantiene el turno abierto durante la transaccion y evita
+    // la carrera entre un pago nuevo y el futuro cierre de turno.
+    const turnoResultado = await client.query(
+      `SELECT id_turno FROM public.turnos_caja
+       WHERE id_cajero = $1 AND estado = 'abierto'
+       FOR SHARE`,
+      [idCajero]
+    );
+    const idTurno = turnoResultado.rows[0]?.id_turno;
+    if (!idTurno) {
+      await client.query('ROLLBACK');
+      return res.status(409).json({
+        ok: false,
+        code: 'TURNO_CAJA_REQUERIDO',
+        message: 'Debes abrir tu turno de caja antes de registrar un cobro.',
+      });
+    }
+
     const { cuenta, detalles } = await obtenerPendientesCuenta(client, idCuenta);
     if (!cuenta) {
       await client.query('ROLLBACK');
@@ -601,8 +622,8 @@ async function registrarPago(req, res) {
       `INSERT INTO pagos
         (id_cuenta, metodo_pago, monto, pagado_por, estado_pago, referencia, tipo_pago,
          mesa_pagadora, notas, id_cajero, monto_recibido, vuelto,
-         idempotency_key, idempotency_hash)
-       VALUES ($1, $2, $3, $4, 'pagado', $5, $6, $7, $8, $9, $10, $11, $12, $13)
+         idempotency_key, idempotency_hash, id_turno)
+       VALUES ($1, $2, $3, $4, 'pagado', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
        RETURNING *`,
       [
         idCuenta,
@@ -618,6 +639,7 @@ async function registrarPago(req, res) {
         efectivo.vuelto,
         clave,
         huella,
+        idTurno,
       ]
     );
 
@@ -665,6 +687,12 @@ async function registrarPago(req, res) {
       return res.status(409).json({
         ok: false, code: 'IDEMPOTENCY_CONFLICT',
         message: 'Ya existe un pago con esa clave. Reintenta la misma operacion y consulta el historial.',
+      });
+    }
+    if (['42P01', '42703'].includes(error.code)) {
+      return res.status(503).json({
+        ok: false, code: 'MIGRACION_TURNOS_PENDIENTE',
+        message: 'La estructura de turnos no esta lista. Aplica la migracion del commit 12.',
       });
     }
     if (error.status === 400) {
@@ -789,6 +817,8 @@ async function obtenerPagosSinCerrar(client, idCajero, bloquear = false) {
      LEFT JOIN cierre_caja_pagos ccp ON ccp.id_pago = pg.id_pago
      WHERE pg.estado_pago = 'pagado'
        AND pg.id_cajero = $1
+       -- Los pagos con turno se arquean en el modulo nuevo, NO en el cierre historico.
+       AND pg.id_turno IS NULL
        AND ccp.id_pago IS NULL
      ORDER BY pg.fecha_pago ASC${suffix}`,
     [idCajero]

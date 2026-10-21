@@ -12,12 +12,15 @@ const vm = require('node:vm');
 const archivoControlador = path.join(__dirname, '../src/controllers/cajero.controller.js');
 const fuente = fs.readFileSync(archivoControlador, 'utf8');
 
-function crearEscenario({ estadoPedido = 'entregado', montos = ['24.50'] } = {}) {
+function crearEscenario({ estadoPedido = 'entregado', montos = ['24.50'], turnoAbierto = true } = {}) {
   const consultas = [];
   const eventos = [];
   const cliente = {
     async query(sql, parametros = []) {
       consultas.push({ sql: sql.trim(), parametros });
+      if (/SELECT id_turno FROM public\.turnos_caja/.test(sql)) {
+        return { rows: turnoAbierto ? [{ id_turno: 777 }] : [] };
+      }
       if (/SELECT id_cuenta, id_grupo_mesa, estado, total FROM cuentas/.test(sql)) {
         return { rows: [{ id_cuenta: 7, id_grupo_mesa: 2, estado: 'pendiente', total: '24.50' }] };
       }
@@ -250,4 +253,22 @@ test('varios productos suman centimos exactos (0.10 + 0.20)', async () => {
   assert.equal(insert.parametros[9], '1.00');
   assert.equal(insert.parametros[10], '0.70');
   assert.equal(consultas.filter((c) => c.sql.startsWith('INSERT INTO detalle_pago')).length, 2);
+});
+
+// Commit 13: cada cobro exige un turno vigente, pero conserva idempotencia.
+test('el pago queda asociado al turno abierto del cajero', async () => {
+  const { respuesta, insert } = await pagar({ metodo_pago: 'Efectivo', monto_recibido: '50.00' });
+  assert.equal(respuesta.statusCode, 201);
+  assert.equal(insert.parametros[13], 777);
+  assert.match(insert.sql, /idempotency_hash, id_turno/);
+});
+
+test('sin turno abierto devuelve 409 antes de insertar pagos', async () => {
+  const { respuesta, insert, consultas } = await pagar(
+    { metodo_pago: 'Efectivo', monto_recibido: '50.00' }, { turnoAbierto: false }
+  );
+  assert.equal(respuesta.statusCode, 409);
+  assert.equal(respuesta.payload.code, 'TURNO_CAJA_REQUERIDO');
+  assert.equal(insert, undefined);
+  assert.ok(consultas.some((c) => c.sql === 'ROLLBACK'));
 });
