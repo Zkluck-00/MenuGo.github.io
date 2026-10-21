@@ -1,6 +1,7 @@
 if (window.MENUGO_PERSONAL_BLOQUEADO) { throw new Error('Acceso bloqueado. Inicia sesion.'); }
 const API_BASE = window.MENUGO_API || "http://localhost:4000/api";
 let pedidos = [];
+let cargaPedidosEnCurso = null;
 let filtroActual = "todos";
 let busquedaCocina = "";
 let tipoCocina = "todos";
@@ -97,7 +98,19 @@ function coincideFiltro(pedido) {
   return normalizar(estadoPedido(pedido)) === normalizar(filtroActual);
 }
 
-async function mostrarPedidos() {
+function mostrarPedidos() {
+  if (cargaPedidosEnCurso) {
+    return cargaPedidosEnCurso;
+  }
+
+  cargaPedidosEnCurso = cargarYMostrarPedidos()
+    .finally(() => {
+      cargaPedidosEnCurso = null;
+    });
+
+  return cargaPedidosEnCurso;
+}
+async function cargarYMostrarPedidos() {
   const contenedor = document.getElementById("contenedor-pedidos");
   if (!contenedor) return;
 
