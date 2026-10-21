@@ -104,6 +104,7 @@ async function mostrarPedidos() {
 
   try {
     await cargarPedidos();
+    actualizarResumenCocina();
   } catch (error) {
     contenedor.innerHTML = `
       <div class="col-span-full rounded-3xl border border-red-200 bg-red-50 p-8 text-center text-red-700">
@@ -165,6 +166,31 @@ function renderObservaciones(item) {
       <p class="mt-1 whitespace-pre-line break-words text-sm font-semibold text-amber-950">${escapeHtml(observacion)}</p>
     </div>
   `;
+}
+function actualizarResumenCocina() {
+  const activos = pedidosActivosCocina();
+
+  const contadores = {
+    "total-pendientes": activos.filter(
+      (pedido) => estadoDb(pedido) === "pendiente"
+    ).length,
+
+    "total-preparando": activos.filter(
+      (pedido) => estadoDb(pedido) === "preparando"
+    ).length,
+
+    "total-listos": activos.filter(
+      (pedido) => esListo(pedido)
+    ).length
+  };
+
+  Object.entries(contadores).forEach(([id, cantidad]) => {
+    const elemento = document.getElementById(id);
+
+    if (elemento) {
+      elemento.textContent = cantidad;
+    }
+  });
 }
 function renderPedido(pedido) {
   const productos = pedido.productos || pedido.items || [];
