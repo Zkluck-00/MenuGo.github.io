@@ -158,6 +158,19 @@ function renderPedido(pedido) {
   const estado = estadoPedido(pedido);
   const listo = esListo(pedido);
   const textoListo = textoListoSegunTipo(pedido);
+  const paraLlevar = esPedidoLlevar(pedido);
+
+const etiquetaTipo = paraLlevar
+  ? "Para llevar"
+  : "Consumo en mesa";
+
+const colorTipo = paraLlevar
+  ? "border-violet-200 bg-violet-50 text-violet-800"
+  : "border-blue-200 bg-blue-50 text-blue-800";
+
+const mensajeListo = paraLlevar
+  ? "Preparación completada. Pedido listo para recoger."
+  : "Preparación completada. El mesero ya puede llevar el pedido a la mesa.";
   const idPedido = escapeHtml(String(pedido.id_pedido || pedido.id));
   const codigo = pedido.codigo || `PED-${pedido.id_pedido || pedido.id}`;
 
@@ -184,7 +197,7 @@ function renderPedido(pedido) {
   const acciones = listo
     ? `
       <div class="rounded-2xl bg-emerald-50 p-4 text-center text-sm font-black text-emerald-700">
-        Pedido listo. Desde este momento aparece en el panel del mesero para entregarlo.
+        ${mensajeListo}
       </div>
     `
     : `
@@ -231,15 +244,27 @@ function renderPedido(pedido) {
         </p>
       </header>
 
-      <div class="flex flex-1 flex-col p-5">
-        <div class="mb-4 rounded-2xl border border-orange-100 bg-orange-50 p-4">
-          <p class="text-xs font-bold uppercase tracking-wide text-orange-700">
-            Mesa
-          </p>
-          <p class="mt-1 break-words text-3xl font-black text-slate-950">
-            ${escapeHtml(pedido.mesa || "No aplica")}
-          </p>
-        </div>
+     <div class="mb-4 rounded-2xl border p-4 ${colorTipo}">
+  <p class="text-xs font-black uppercase tracking-widest">
+    ${etiquetaTipo}
+  </p>
+
+  ${paraLlevar ? `
+    <p class="mt-2 text-2xl font-black">
+      Retiro del pedido
+    </p>
+    <p class="mt-1 text-sm font-medium">
+      Revisa los productos y sus observaciones antes de empacarlos.
+    </p>
+  ` : `
+    <p class="mt-2 break-words text-3xl font-black">
+      Mesa ${escapeHtml(pedido.mesa || "No asignada")}
+    </p>
+    <p class="mt-1 text-sm font-medium">
+      Prepara el pedido para su entrega en mesa.
+    </p>
+  `}
+</div>
 
         <dl class="mb-5 space-y-2 text-sm text-slate-600">
           <div>
