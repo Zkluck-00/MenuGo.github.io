@@ -1,6 +1,7 @@
 if (window.MENUGO_PERSONAL_BLOQUEADO) { throw new Error('Acceso bloqueado. Inicia sesion.'); }
 const API_BASE = window.MENUGO_API || "http://localhost:4000/api";
 let pedidos = [];
+const pedidosActualizandose = new Set();
 let cargaPedidosEnCurso = null;
 let filtroActual = "todos";
 let busquedaCocina = "";
@@ -504,15 +505,25 @@ function colorEstado(estado) {
 }
 
 async function cambiarEstado(idPedido, nuevoEstado) {
+  const id = String(idPedido);
+
+  if (pedidosActualizandose.has(id)) {
+    return;
+  }
+
+  pedidosActualizandose.add(id);
+
   try {
-    await apiJson(`/cocina/pedidos/${encodeURIComponent(idPedido)}/estado`, {
+    await apiJson(`/cocina/pedidos/${encodeURIComponent(id)}/estado`, {
       method: "PATCH",
-      body: JSON.stringify({ estado: nuevoEstado }),
+      body: JSON.stringify({ estado: nuevoEstado })
     });
-    mostrarNotificacion(`Pedido actualizado a: ${nuevoEstado}`, "success");
+
     await mostrarPedidos();
   } catch (error) {
     alert(`No se pudo actualizar el pedido: ${error.message}`);
+  } finally {
+    pedidosActualizandose.delete(id);
   }
 }
 
