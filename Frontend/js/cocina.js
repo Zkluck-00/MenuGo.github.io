@@ -518,13 +518,28 @@ async function cambiarEstado(idPedido, nuevoEstado) {
       method: "PATCH",
       body: JSON.stringify({ estado: nuevoEstado })
     });
-
-    await mostrarPedidos();
   } catch (error) {
-    alert(`No se pudo actualizar el pedido: ${error.message}`);
+    mostrarNotificacion(
+      `No se pudo actualizar el pedido: ${error.message}`,
+      "error"
+    );
+    return;
   } finally {
     pedidosActualizandose.delete(id);
   }
+
+  const mensajes = {
+    preparando: "Pedido actualizado: en preparación.",
+    listo: "Pedido marcado como listo.",
+    cancelado: "Pedido cancelado."
+  };
+
+  mostrarNotificacion(
+    mensajes[nuevoEstado] || "Estado del pedido actualizado.",
+    "success"
+  );
+
+  await mostrarPedidos();
 }
 
 async function recargarCocina() {
