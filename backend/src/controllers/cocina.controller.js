@@ -7,6 +7,16 @@ async function listarPedidosCocina(req, res) {
 }
 
 async function cambiarEstadoCocina(req, res) {
+  const estadosPermitidos = ["preparando", "listo", "cancelado"];
+  const estado = req.body?.estado;
+
+  if (!estadosPermitidos.includes(estado)) {
+    return res.status(400).json({
+      ok: false,
+      message: "Cocina solo puede cambiar a preparando, listo o cancelado."
+    });
+  }
+
   req.body.rol = "cocina";
   return pedidosController.actualizarEstadoPedido(req, res);
 }
