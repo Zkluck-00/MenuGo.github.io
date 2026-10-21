@@ -1,20 +1,25 @@
 name: Pruebas automatizadas del cajero
 
-# Cada push a la rama de trabajo o pull request hacia main ejecuta pruebas.
 on:
   push:
     branches:
       - feature/cajero-mejoras
+      - main
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: cajero-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pruebas-cajero:
-    name: Validar JavaScript y pruebas de caja
+    name: Sintaxis y pruebas de regresion
     runs-on: ubuntu-latest
     timeout-minutes: 10
 
@@ -27,13 +32,11 @@ jobs:
         with:
           node-version: '20'
 
-      - name: Validar sintaxis del backend
-        run: node --check backend/src/controllers/cajero.controller.js
-
-      - name: Validar sintaxis del frontend
+      - name: Verificar sintaxis JavaScript
+        shell: bash
         run: |
-          node --check Frontend/js/caja.js
-          node --check Frontend/js/subcuentas-caja.js
+          find backend/src backend/scripts backend/test Frontend/js -type f \
+            \( -name '*.js' -o -name '*.cjs' \) -print0 | xargs -0 -n 1 node --check
 
-      - name: Ejecutar pruebas automatizadas del cajero
+      - name: Ejecutar pruebas automatizadas
         run: node --test backend/test/*.test.cjs
