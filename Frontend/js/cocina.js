@@ -348,6 +348,27 @@ return `
   </div>
 `;
 }
+function restablecerFiltrosCocina() {
+  busquedaCocina = "";
+  tipoCocina = "todos";
+  ordenCocina = "antiguos";
+
+  const valores = {
+    "buscar-pedido": "",
+    "filtro-tipo": "todos",
+    "orden-pedidos": "antiguos"
+  };
+
+  Object.entries(valores).forEach(([id, valor]) => {
+    const elemento = document.getElementById(id);
+
+    if (elemento) {
+      elemento.value = valor;
+    }
+  });
+
+  filtrarPedidos("todos");
+}
 function renderPedido(pedido) {
   const productos = pedido.productos || pedido.items || [];
   const estado = estadoPedido(pedido);
