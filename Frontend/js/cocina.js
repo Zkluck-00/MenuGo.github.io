@@ -67,6 +67,19 @@ function pedidosActivosCocina() {
 }
 
 function filtrarPedidos(estado) {
+    const nombresFiltros = {
+    todos: "Todos los pedidos",
+    Pendiente: "Pedidos pendientes",
+    "En preparación": "Pedidos en preparación",
+    listos: "Pedidos listos"
+  };
+
+  const indicador = document.getElementById("filtro-activo");
+
+  if (indicador) {
+    indicador.textContent =
+      `Mostrando: ${nombresFiltros[estado] || estado}`;
+  }
   filtroActual = estado;
   console.log("Filtrando pedidos por: ", estado);
   mostrarPedidos();
