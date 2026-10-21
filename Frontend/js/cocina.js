@@ -124,7 +124,35 @@ async function mostrarPedidos() {
       subtitulo.textContent = `Pedidos activos en cola: ${pedidosFiltrados.length} | Última actualización: ${horaActual}`;
   }
 }
+function renderObservaciones(item) {
+  const observacion = [
+    item.observacion,
+    item.opcion,
+    item.comentario
+  ]
+    .map((valor) => String(valor ?? "").trim())
+    .find((texto) =>
+      texto !== "" &&
+      texto.toLowerCase() !== "sin observaciones"
+    );
 
+  if (!observacion) {
+    return `
+      <p class="mt-2 text-xs font-medium text-slate-400">
+        Sin observaciones
+      </p>
+    `;
+  }
+
+  return `
+    <div class="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
+      <p class="text-xs font-black uppercase tracking-wide text-amber-800">
+        Observaciones del cliente
+      </p>
+      <p class="mt-1 whitespace-pre-line break-words text-sm font-semibold text-amber-950">${escapeHtml(observacion)}</p>
+    </div>
+  `;
+}
 function renderPedido(pedido) {
   const productos = pedido.productos || pedido.items || [];
   const estado = estadoPedido(pedido);
@@ -144,9 +172,7 @@ function renderPedido(pedido) {
           <p class="break-words text-base font-black text-slate-950">
             ${escapeHtml(item.nombre)}
           </p>
-          <p class="mt-1 break-words text-sm font-medium text-slate-500">
-            ${escapeHtml(item.observacion || item.opcion || item.comentario || "Sin observaciones")}
-          </p>
+          ${renderObservaciones(item)}
           <p class="mt-2 text-sm font-bold text-slate-700">
             S/ ${soles(item.subtotal || Number(item.precio || 0) * Number(item.cantidad || 1))}
           </p>
