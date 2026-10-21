@@ -5,6 +5,7 @@ let filtroActual = "todos";
 let busquedaCocina = "";
 let tipoCocina = "todos";
 let ordenCocina = "antiguos";
+const UMBRAL_DEMORA_MINUTOS = 20;
 let sonidoActivo = true;
 
 function normalizar(valor) {
@@ -286,11 +287,26 @@ function renderTiempoEspera(pedido) {
       ? `${horas} h ${restantes} min`
       : `${minutos} min`;
 
-  return `
-    <p class="mt-2 text-sm font-bold text-slate-700">
+  const demorado = minutos >= UMBRAL_DEMORA_MINUTOS;
+
+return `
+  <div class="mt-2 rounded-xl border p-3 ${
+    demorado
+      ? "border-red-200 bg-red-50 text-red-800"
+      : "border-slate-200 bg-slate-50 text-slate-700"
+  }">
+    <p class="text-sm font-bold">
       Espera desde el ingreso: ${tiempo}
     </p>
-  `;
+
+    ${demorado ? `
+      <p class="mt-1 text-xs font-semibold">
+        Atención: este pedido lleva ${UMBRAL_DEMORA_MINUTOS}
+        minutos o más desde su ingreso. Revisa su preparación.
+      </p>
+    ` : ""}
+  </div>
+`;
 }
 function renderPedido(pedido) {
   const productos = pedido.productos || pedido.items || [];
