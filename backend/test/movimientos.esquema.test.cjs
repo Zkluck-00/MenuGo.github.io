@@ -9,7 +9,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..', '..');
-const migrationFile = path.join(root, 'database', '20261020_cajero_movimientos_caja.sql');
+// Los archivos SQL del repositorio pueden estar guardados con o sin fecha.
+const migrationFile = [
+  '20261020_cajero_movimientos_caja.sql',
+  'cajero_movimientos_caja.sql'
+].map(nombre => path.join(root, 'database', nombre)).find(archivo => fs.existsSync(archivo));
+assert.ok(migrationFile, 'No existe la migracion de movimientos de caja en database/');
 const verificationFile = path.join(root, 'database', '20261020_cajero_movimientos_verificacion.sql');
 
 const sql = fs.readFileSync(migrationFile, 'utf8');

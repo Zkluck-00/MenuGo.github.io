@@ -8,7 +8,12 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.resolve(__dirname, '..', '..');
-const sql = fs.readFileSync(path.join(root, 'database', '20261020_cajero_subcuentas.sql'), 'utf8');
+// Compatible con nombres SQL versionados con fecha o usados en GitHub.
+const migrationFile = ['20261020_cajero_subcuentas.sql', 'cajero_subcuentas.sql']
+  .map(nombre => path.join(root, 'database', nombre))
+  .find(archivo => fs.existsSync(archivo));
+assert.ok(migrationFile, 'No existe la migracion de subcuentas en database/');
+const sql = fs.readFileSync(migrationFile, 'utf8');
 const verification = fs.readFileSync(path.join(root, 'database', '20261020_cajero_subcuentas_verificacion.sql'), 'utf8');
 const ddl = sql.replace(/^\s*--.*$/gm, '');
 const has = (pattern, value = ddl) => assert.match(value, pattern);

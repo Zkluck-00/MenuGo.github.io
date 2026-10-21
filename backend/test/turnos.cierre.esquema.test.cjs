@@ -3,7 +3,13 @@ const test=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const path=require('node:path');
-const sql=fs.readFileSync(path.resolve(__dirname,'../../database/20261020_cajero_cierre_idempotente.sql'),'utf8');
+const root = path.resolve(__dirname, '../..');
+// La migracion puede utilizar un nombre con fecha o sin fecha.
+const migrationFile = ['20261020_cajero_cierre_idempotente.sql', 'cajero_cierre_idempotente.sql']
+  .map(nombre => path.join(root, 'database', nombre))
+  .find(archivo => fs.existsSync(archivo));
+assert.ok(migrationFile, 'No existe la migracion de cierre idempotente en database/');
+const sql = fs.readFileSync(migrationFile, 'utf8');
 const validacion=fs.readFileSync(path.resolve(__dirname,'../../database/20261020_cajero_cierre_verificacion.sql'),'utf8');
 test('migracion SQL transaccional y no destructiva',()=>{
   assert.match(sql,/\bBEGIN;/);assert.match(sql,/\bCOMMIT;/);
