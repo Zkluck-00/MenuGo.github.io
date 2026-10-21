@@ -4,6 +4,7 @@ const cajeroController = require('../controllers/cajero.controller');
 const turnosCajaController = require('../controllers/turnos-caja.controller');
 const movimientosCajaController = require('../controllers/movimientos-caja.controller');
 const cierreTurnosController = require('../controllers/turnos-cierre.controller');
+const subcuentasController = require('../controllers/subcuentas.controller');
 const { autenticarPersonal, autorizarRoles } = require('../middleware/auth.middleware');
 
 router.use(autenticarPersonal, autorizarRoles('cajero', 'administrador'));
@@ -20,6 +21,14 @@ router.post('/turnos/:id/cerrar', autorizarRoles('cajero'), cierreTurnosControll
 // Movimientos manuales solo del turno abierto del cajero autenticado.
 router.get('/turnos/actual/movimientos', autorizarRoles('cajero'), movimientosCajaController.listarMovimientosCaja);
 router.post('/turnos/actual/movimientos', autorizarRoles('cajero'), movimientosCajaController.registrarMovimientoCaja);
+
+// Commit 18: todas las operaciones sobre subcuentas requieren rol Cajero.
+// Importante: rutas mas especificas ANTES de /cuentas/:id/pagos.
+router.get('/cuentas/:id/subcuentas', autorizarRoles('cajero'), subcuentasController.listarSubcuentas);
+router.post('/cuentas/:id/subcuentas', autorizarRoles('cajero'), subcuentasController.crearSubcuenta);
+router.post('/cuentas/:id/subcuentas/:idSubcuenta/detalles', autorizarRoles('cajero'), subcuentasController.asignarProducto);
+router.delete('/cuentas/:id/subcuentas/:idSubcuenta/detalles/:idAsignacion', autorizarRoles('cajero'), subcuentasController.eliminarAsignacion);
+router.post('/cuentas/:id/subcuentas/:idSubcuenta/pagos', autorizarRoles('cajero'), cajeroController.registrarPago);
 
 router.get('/resumen', cajeroController.resumenCaja);
 router.get('/cuentas', cajeroController.listarCuentas);
