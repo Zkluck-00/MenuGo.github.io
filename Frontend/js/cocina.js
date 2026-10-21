@@ -511,6 +511,28 @@ async function cambiarEstado(idPedido, nuevoEstado) {
     return;
   }
 
+  if (nuevoEstado === "listo") {
+  const pedido = pedidos.find(
+    (actual) => String(actual.id_pedido || actual.id) === id
+  );
+
+  const codigo = pedido?.codigo || `PED-${id}`;
+  const productos = pedido?.productos || pedido?.items || [];
+
+  const detalle = productos
+    .map((item) => `• ${item.cantidad || 1} x ${item.nombre}`)
+    .join("\n");
+
+  const confirmado = window.confirm(
+    `¿Marcar el pedido ${codigo} como listo?\n\n` +
+    (detalle ? `${detalle}\n\n` : "") +
+    "Confirma que todos los productos estén preparados."
+  );
+
+  if (!confirmado) {
+    return;
+  }
+}
   pedidosActualizandose.add(id);
 
   try {
