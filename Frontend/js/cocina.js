@@ -513,7 +513,11 @@ const mensajeListo = paraLlevar
         </h3>
 
         <ul class="mb-5 space-y-3">
-          ${productosHtml}
+          ${productos.length > 0 ? productosHtml : `
+  <li class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+    Este pedido no tiene productos registrados. Consulta con el mesero.
+  </li>
+`}
         </ul>
 
         <div class="mt-auto border-t border-slate-200 pt-4">
