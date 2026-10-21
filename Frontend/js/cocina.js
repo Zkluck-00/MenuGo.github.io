@@ -123,6 +123,20 @@ async function cargarYMostrarPedidos() {
   try {
     await cargarPedidos();
     actualizarResumenCocina();
+    const indicadorActualizacion = document.getElementById(
+  "ultima-actualizacion"
+);
+
+if (indicadorActualizacion) {
+  const hora = new Date().toLocaleTimeString("es-PE", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  });
+
+  indicadorActualizacion.textContent =
+    `Última carga exitosa: ${hora}`;
+}
     } catch (error) {
     contenedor.innerHTML = `
       <div class="col-span-full rounded-3xl border border-red-200 bg-red-50 p-8 text-center text-red-700">
