@@ -257,6 +257,41 @@ function compararPedidosCocina(a, b) {
     ? fechaB - fechaA
     : fechaA - fechaB;
 }
+function renderTiempoEspera(pedido) {
+  if (!["pendiente", "preparando"].includes(estadoDb(pedido))) {
+    return "";
+  }
+
+  const fecha = Date.parse(pedido.fechaISO);
+
+  if (Number.isNaN(fecha)) {
+    return `
+      <p class="mt-2 text-xs text-slate-500">
+        Tiempo de espera no disponible
+      </p>
+    `;
+  }
+
+  const minutos = Math.max(
+    0,
+    Math.floor((Date.now() - fecha) / 60000)
+  );
+
+  const horas = Math.floor(minutos / 60);
+  const restantes = minutos % 60;
+
+  const tiempo = minutos < 1
+    ? "Menos de 1 min"
+    : horas > 0
+      ? `${horas} h ${restantes} min`
+      : `${minutos} min`;
+
+  return `
+    <p class="mt-2 text-sm font-bold text-slate-700">
+      Espera desde el ingreso: ${tiempo}
+    </p>
+  `;
+}
 function renderPedido(pedido) {
   const productos = pedido.productos || pedido.items || [];
   const estado = estadoPedido(pedido);
@@ -346,6 +381,7 @@ const mensajeListo = paraLlevar
           ${escapeHtml(pedido.fecha || "")}
           ${escapeHtml(pedido.hora || "")}
         </p>
+        ${renderTiempoEspera(pedido)}
       </header>
 
      <div class="mb-4 rounded-2xl border p-4 ${colorTipo}">
