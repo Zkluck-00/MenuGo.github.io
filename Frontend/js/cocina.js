@@ -122,11 +122,23 @@ async function cargarYMostrarPedidos() {
   try {
     await cargarPedidos();
     actualizarResumenCocina();
-  } catch (error) {
+    } catch (error) {
     contenedor.innerHTML = `
       <div class="col-span-full rounded-3xl border border-red-200 bg-red-50 p-8 text-center text-red-700">
-        <h2 class="text-2xl font-black">No se pudo conectar con cocina</h2>
-        <p class="mt-2 text-sm font-semibold">${escapeHtml(error.message)}</p>
+        <h2 class="text-2xl font-black">
+          No se pudo conectar con cocina
+        </h2>
+
+        <p class="mt-2 text-sm font-semibold">
+          ${escapeHtml(error.message)}
+        </p>
+
+        <button
+          type="button"
+          onclick="mostrarPedidos()"
+          class="mt-4 rounded-xl bg-red-700 px-5 py-3 text-sm font-bold text-white transition hover:bg-red-800">
+          Reintentar carga
+        </button>
       </div>`;
     return;
   }
