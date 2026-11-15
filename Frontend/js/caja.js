@@ -554,11 +554,6 @@ async function registrarPagoCaja(event, idCuenta) {
         ? `Pago registrado correctamente. Vuelto confirmado: ${solesCaja(vueltoConfirmado)}.`
         : 'Pago registrado correctamente por Caja.';
     mostrarNotificacionCaja(mensaje);
-    // Commit 22: ofrecer ticket solo despues del POST confirmado.
-    // El visor realiza GET del PDF del commit 21: NO registra otro cobro.
-    if (typeof window.MenuGoTicket?.ofrecerImpresion === 'function') {
-      window.MenuGoTicket.ofrecerImpresion(registro.data, { retorno: 'cajero.html' });
-    }
     await recargarCaja();
     if (typeof window.actualizarTurnoCaja === 'function') await window.actualizarTurnoCaja();
   } catch (error) {

@@ -604,11 +604,6 @@ async function enviarPagoSub(intento) {
     mensajeSub(respuesta.repetido
       ? `Pago #${respuesta.data?.id_pago} recuperado; no se duplico el cobro.`
       : `Pago individual registrado. Vuelto confirmado: ${monedaSub(respuesta.data?.vuelto)}.`, 'ok');
-    // Commit 22: tambien ofrece el PDF al pagar una subcuenta.
-    // No modifica el pago ni su idempotencia, solo abre una pantalla de lectura.
-    if (typeof window.MenuGoTicket?.ofrecerImpresion === 'function') {
-      window.MenuGoTicket.ofrecerImpresion(respuesta.data, { retorno: 'dividir_cuenta.html' });
-    }
     await cargarDatosSub();
   } catch (error) {
     if ([400, 401, 403, 404, 422].includes(error.status)) borrarPendienteSub();
