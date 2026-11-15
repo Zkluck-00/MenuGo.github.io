@@ -6,6 +6,7 @@ async function listarPedidosCocina(req, res) {
   return pedidosController.listarPedidos(req, res);
 }
 
+// MEJORA: Validación de seguridad. Evita que desde el frontend hackeen el estado
 async function cambiarEstadoCocina(req, res) {
     const idPedido = Number(req.params.id);
 
@@ -23,6 +24,15 @@ async function cambiarEstadoCocina(req, res) {
       ok: false,
       message: "Cocina solo puede cambiar a preparando, listo o cancelado."
     });
+  const nuevoEstado = req.body.estado;
+  
+  // Array con los únicos estados que la cocina tiene permitido usar
+  const estadosPermitidosCocina = ["pendiente", "En preparación", "listo"];
+  
+  if (!estadosPermitidosCocina.includes(nuevoEstado)) {
+      return res.status(403).json({ 
+          error: `Acción denegada. El rol 'cocina' no puede cambiar el estado a '${nuevoEstado}'.` 
+      });
   }
 
   req.body.rol = "cocina";

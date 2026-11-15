@@ -16,16 +16,15 @@
             <p class="text-sm font-black uppercase tracking-wide text-white">Panel del mesero</p>
             <h1 class="mt-1 text-3xl font-black leading-tight text-white md:text-4xl">Unir mesas</h1>
             <p class="mt-2 max-w-2xl text-base font-medium text-white/90">
-              Agrupa mesas cuando llegan más clientes. Todas las mesas unidas funcionarán como una sola cuenta, pero el pago podrá dividirse después por platos, boleta o factura.
+              Agrupa mesas cuando llegan más clientes. Todas las mesas unidas funcionarán como una sola cuenta. El mesero mantiene la atención y Caja realizará el cobro final o dividido.
             </p>
           </div>
         </div>
 
         <div class="flex flex-wrap justify-center gap-2 lg:justify-end">
           <a href="mesas.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Ver mesas</a>
-          <a href="pedidos.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Cuentas y pagos</a>
+          <a href="pedidos.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Pedidos y entregas</a>
           <a href="tomar_pedido.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Tomar pedido</a>
-          <a href="pago_cruzado.html" class="rounded-2xl bg-white/10 px-4 py-3 text-sm font-black text-white ring-1 ring-white/20 hover:bg-white/20">Pago cruzado</a>
         </div>
       </div>
     </header>
@@ -38,10 +37,10 @@
           <p class="mt-2 text-sm font-semibold text-slate-500">Elige una mesa principal y una o más mesas secundarias. Las mesas en limpieza no se pueden unir.</p>
         </div>
 
-        <label class="block">
-          <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Mesa principal</span>
-          <select id="mesa-principal" onchange="renderOpcionesMesasSecundarias()" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500"></select>
-        </label>
+        <div class="block">
+         <label for="mesa-principal" class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500 cursor-pointer">Mesa principal</label>
+         <select id="mesa-principal" onchange="renderOpcionesMesasSecundarias()" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500 cursor-pointer"></select>
+        </div>
 
         <div class="mt-4">
           <span class="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">Mesas a unir</span>
@@ -52,7 +51,7 @@
           Al confirmar, los pedidos activos de las mesas seleccionadas se unirán bajo una sola cuenta. Los QR de esas mesas deberían apuntar a la misma sesión cuando luego se conecte backend.
         </div>
 
-        <button type="submit" class="mt-5 w-full rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600">
+        <button type="submit" class="mt-5 w-full rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition-colors duration-300 hover:bg-orange-600">
           Confirmar unión de mesas
         </button>
       </form>
@@ -80,7 +79,7 @@
               <p class="text-sm font-black uppercase tracking-wide text-slate-500">Grupos activos</p>
               <h2 class="mt-1 text-2xl font-black text-slate-950">Mesas unidas</h2>
             </div>
-            <p class="text-sm font-semibold text-slate-500">Puedes desunir solo si no hay pagos pendientes.</p>
+            <p class="text-sm font-semibold text-slate-500">Puedes desunir cuando la operación de la mesa lo permita; los cobros se gestionan desde Caja.</p>
           </div>
           <div id="grupos-activos" class="mt-4 space-y-3"></div>
         </div>

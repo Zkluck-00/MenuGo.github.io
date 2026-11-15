@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>MenuGo | Comprobantes</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="min-h-screen bg-[#f7f3ec] text-slate-900">
+    <main class="mx-auto max-w-6xl px-4 py-6">
+        <header class="mb-6 rounded-[28px] bg-slate-950 p-6 text-white">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <p class="text-sm font-black uppercase text-orange-400">Cajero</p>
+                    <h1 class="text-3xl font-black">Boletas y facturas</h1>
+                </div><a href="cajero.html" class="rounded-xl bg-white/10 px-4 py-3 font-black">Volver a Caja</a>
+            </div>
+        </header>
+        <section class="mb-5 flex flex-wrap gap-2 rounded-3xl border bg-white p-3"><button
+                onclick="cargarComprobantes('')"
+                class="rounded-xl bg-slate-950 px-4 py-2 font-black text-white">Todos</button><button
+                onclick="cargarComprobantes('boleta')"
+                class="rounded-xl border px-4 py-2 font-black">Boletas</button><button
+                onclick="cargarComprobantes('factura')" class="rounded-xl border px-4 py-2 font-black">Facturas</button>
+        </section>
+        <section id="lista-comprobantes" class="grid gap-4 md:grid-cols-2 lg:grid-cols-3"></section>
+    </main>
+    <script src="../js/config.js"></script>
+    <script src="../js/personal-auth.js"></script>
+    <script src="../js/facturacion.js"></script>
+</body>
+
+</html>

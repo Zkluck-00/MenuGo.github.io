@@ -11,6 +11,7 @@ const cuentasRoutes = require("./routes/cuentas.routes");
 const cocinaRoutes = require("./routes/cocina.routes");
 const meseroRoutes = require("./routes/mesero.routes");
 const adminRoutes = require('./routes/admin.routes');
+const cajeroRoutes = require('./routes/cajero.routes');
 const { prepararQrMesas } = require('./config/qrMesas');
 
 const app = express();
@@ -154,6 +155,7 @@ app.use("/api/mesas", mesasRoutes);
 app.use("/api/cuentas", cuentasRoutes);
 app.use("/api/cocina", cocinaRoutes);
 app.use("/api/mesero", meseroRoutes);
+app.use("/api/cajero", cajeroRoutes);
 app.use("/api/admin", adminRoutes);
 
 app.use((req, res) => {

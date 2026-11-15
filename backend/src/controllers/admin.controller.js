@@ -1,5 +1,7 @@
 const { adminPool } = require("../config/db");
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const { jwtSecret } = require('../middleware/auth.middleware');
 const eventEmitter = require('../utils/eventEmitter');
 
 function toNumber(value) {
@@ -215,6 +217,7 @@ function normalizarRolAcceso(rol) {
   const valor = String(rol || '').trim().toLowerCase();
   if (['mesero', 'mozo', 'camarero'].includes(valor)) return 'mesero';
   if (['cocina', 'cocinero', 'cocinera', 'chef'].includes(valor)) return 'cocina';
+  if (['cajero', 'cajera', 'caja'].includes(valor)) return 'cajero';
   if (['admin', 'administrador', 'administradora'].includes(valor)) return 'administrador';
   return valor;
 }
@@ -223,6 +226,7 @@ function inicioPorRol(rol) {
   const normalizado = normalizarRolAcceso(rol);
   if (normalizado === 'mesero') return 'mesas.html';
   if (normalizado === 'cocina') return 'pedidos.html';
+  if (normalizado === 'cajero') return 'cajero.html';
   if (normalizado === 'administrador') return 'dashboard.html';
   return 'login.html';
 }
@@ -1160,14 +1164,34 @@ async function loginPersonal(req, res) {
       return res.status(403).json({ ok: false, message: `Esta cuenta pertenece al rol ${trabajador.rol}, no al rol solicitado.` });
     }
 
+    const nombre = nombreCompletoTrabajador(trabajador);
+    const email = trabajador.correo || trabajador.usuario_acceso;
+    const token = jwt.sign(
+      {
+        tipo: 'personal',
+        rol: rolTrabajador,
+        nombre,
+        email,
+      },
+      jwtSecret(),
+      { subject: String(trabajador.idtrabajador), expiresIn: '8h' }
+    );
+
+    const rolTexto = {
+      cocina: 'Cocina',
+      mesero: 'Mesero',
+      cajero: 'Cajero',
+      administrador: 'Administrador',
+    }[rolTrabajador] || trabajador.rol;
+
     res.json({
       ok: true,
-      token: `personal-token-${Date.now()}`,
+      token,
       data: {
         id_trabajador: trabajador.idtrabajador,
-        nombre: nombreCompletoTrabajador(trabajador),
-        email: trabajador.correo || trabajador.usuario_acceso,
-        rol: rolTrabajador === 'cocina' ? 'Cocina' : rolTrabajador === 'mesero' ? 'Mesero' : 'Administrador',
+        nombre,
+        email,
+        rol: rolTexto,
         inicio: inicioPorRol(rolTrabajador)
       }
     });
