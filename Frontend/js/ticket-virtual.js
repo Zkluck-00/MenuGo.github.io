@@ -4,7 +4,7 @@
 // Este archivo solo consulta un PDF previamente registrado (GET).
 // No modifica cuentas, pagos ni comprobantes y no almacena tokens en URLs.
 (function (global) {
-  const RETORNOS_PERMITIDOS = new Set(['cajero.html', 'dividir_cuenta.html']);
+  const RETORNOS_PERMITIDOS = new Set(['cajero.html', 'dividir_cuenta.html', 'historial_pagos.html', 'facturacion.html']);
   const DOM = typeof document !== 'undefined' ? document : null;
   const estado = { idPago: null, pdfUrl: null, carga: null, numeroSolicitud: 0 };
 
@@ -222,7 +222,16 @@
     estado.idPago = idPagoValido(parametros.get('pago'));
     const volver = retornoSeguro(parametros.get('volver'));
     const enlaceVolver = porId('enlace-volver-impresora');
-    if (enlaceVolver) { enlaceVolver.href = volver; enlaceVolver.textContent = volver === 'dividir_cuenta.html' ? '← Volver a dividir cuentas' : '← Volver a Caja'; }
+    if (enlaceVolver) {
+      enlaceVolver.href = volver;
+      const nombres = {
+        'cajero.html': '← Volver a Caja',
+        'dividir_cuenta.html': '← Volver a dividir cuentas',
+        'historial_pagos.html': '← Volver al historial',
+        'facturacion.html': '← Volver a comprobantes',
+      };
+      enlaceVolver.textContent = nombres[volver] || nombres['cajero.html'];
+    }
     if (!estado.idPago) {
       mostrarError('No se encontro un identificador de pago valido. Regresa a Caja y registra un pago confirmado.');
       const placeholder = porId('placeholder-pdf-impresora');

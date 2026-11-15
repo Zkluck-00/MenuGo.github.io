@@ -15,9 +15,11 @@
                 <div>
                     <p class="text-sm font-black uppercase text-orange-400">Cajero</p>
                     <h1 class="text-3xl font-black">Historial de pagos</h1>
+                    <p class="mt-2 max-w-2xl text-sm font-medium text-slate-300">Consulta tus cobros y recupera tickets sin registrar otro pago.</p>
                 </div><a href="cajero.html" class="rounded-xl bg-white/10 px-4 py-3 font-black">Volver a Caja</a>
             </div>
         </header>
+        <p class="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-900">Los tickets se recuperan desde pagos confirmados. «Reimprimir» abre la impresora térmica virtual; no se efectúa ningún nuevo cobro.</p>
         <section class="rounded-3xl border border-slate-200 bg-white p-4">
             <div class="grid gap-3 md:grid-cols-4"><label><span
                         class="text-xs font-black uppercase text-slate-500">Desde</span><input id="filtro-desde"
@@ -49,15 +51,18 @@
                             <th class="p-3">Comprobante</th>
                             <th class="p-3">Cajero</th>
                             <th class="p-3 text-right">Monto</th>
+                            <th class="p-3">Ticket</th>
                         </tr>
                     </thead>
-                    <tbody id="tabla-pagos"></tbody>
+                    <tbody id="tabla-pagos"><tr><td colspan="8" class="p-8 text-center text-slate-500">Cargando pagos...</td></tr></tbody>
                 </table>
             </div>
         </section>
     </main>
     <script src="../js/config.js"></script>
     <script src="../js/personal-auth.js"></script>
+    <script src="../js/ticket-virtual.js"></script>
+    <script src="../js/historial-tickets.js"></script>
     <script src="../js/historial-pagos.js"></script>
 </body>
 
