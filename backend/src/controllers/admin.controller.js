@@ -4,6 +4,15 @@ const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../middleware/auth.middleware');
 const eventEmitter = require('../utils/eventEmitter');
 
+function generarTokenAdministrador({ tipo, id, nombre, email }) {
+  return jwt.sign({
+    tipo,
+    rol: 'administrador',
+    nombre,
+    email,
+  }, jwtSecret(), { subject: String(id), expiresIn: '8h', algorithm: 'HS256' });
+}
+
 function toNumber(value) {
   return Number(value || 0);
 }
@@ -262,7 +271,10 @@ async function login(req, res) {
       if (claveOk && admin.estado === true) {
         return res.json({
           ok: true,
-          token: `temp-token-${Date.now()}`,
+          token: generarTokenAdministrador({
+            tipo: 'administrador', id: admin.idadministrador,
+            nombre: admin.nombrecompleto, email: admin.correo,
+          }),
           message: 'Inicio de sesion exitoso',
           data: {
             id_administrador: admin.idadministrador,
@@ -292,7 +304,10 @@ async function login(req, res) {
       if (claveOk && rolOk && estadoTrabajadorActivo(row.estado)) {
         return res.json({
           ok: true,
-          token: `temp-token-${Date.now()}`,
+          token: generarTokenAdministrador({
+            tipo: 'personal', id: row.idtrabajador,
+            nombre: nombreCompletoTrabajador(row), email: row.correo,
+          }),
           message: 'Inicio de sesion exitoso',
           data: {
             id_trabajador: row.idtrabajador,

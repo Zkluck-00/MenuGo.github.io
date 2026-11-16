@@ -140,24 +140,15 @@ function metodoSeleccionado() {
 
 function actualizarInterfazPago() {
   const metodo = metodoSeleccionado();
-  const efectivoBox = document.getElementById("box-efectivo");
-  const digitalBox = document.getElementById("box-pago-digital");
-  if (efectivoBox) efectivoBox.classList.toggle("hidden", metodo !== "Efectivo al recoger");
-  if (!digitalBox) return;
-
-  if (metodo === "Yape") {
-    digitalBox.className = "mt-4 rounded-2xl border border-purple-200 bg-purple-50 p-4";
-    digitalBox.innerHTML = `<h3 class="font-black text-purple-800">Simulacion de pago con Yape</h3><label class="mt-3 block"><span class="mb-1 block text-xs font-black uppercase tracking-wide text-purple-700">Celular Yape</span><input id="celular-yape" type="text" inputmode="numeric" maxlength="9" placeholder="999999999" class="w-full rounded-xl border border-purple-200 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-purple-400"></label><label class="mt-3 block"><span class="mb-1 block text-xs font-black uppercase tracking-wide text-purple-700">Codigo de aprobacion</span><input id="codigo-yape-simple" type="text" maxlength="6" inputmode="numeric" placeholder="123456" class="w-full rounded-xl border border-purple-200 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-purple-400"></label>`;
-    document.getElementById("celular-yape")?.addEventListener("input", (e) => { e.target.value = telefonoLimpio(e.target.value); });
-    document.getElementById("codigo-yape-simple")?.addEventListener("input", (e) => { e.target.value = String(e.target.value || "").replace(/\D/g, "").slice(0, 6); });
-  } else if (metodo === "Tarjeta") {
-    digitalBox.className = "mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4";
-    digitalBox.innerHTML = `<h3 class="font-black text-slate-800">Simulacion de pago con tarjeta</h3><label class="mt-3 block"><span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Numero de tarjeta</span><input id="tarjeta-numero" type="text" maxlength="19" placeholder="0000 0000 0000 0000" class="w-full rounded-xl border border-slate-300 px-4 py-3 font-bold outline-none focus:ring-2 focus:ring-orange-400"></label><div class="mt-3 grid grid-cols-2 gap-3"><label class="block"><span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Vencimiento</span><input id="tarjeta-vencimiento" type="text" maxlength="5" placeholder="MM/AA" class="w-full rounded-xl border border-slate-300 px-4 py-3 font-bold"></label><label class="block"><span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">CVV</span><input id="tarjeta-cvv" type="password" maxlength="3" placeholder="***" class="w-full rounded-xl border border-slate-300 px-4 py-3 font-bold"></label></div>`;
-    document.getElementById("tarjeta-numero")?.addEventListener("input", (e) => { e.target.value = String(e.target.value || "").replace(/\D/g, "").slice(0, 16); });
-    document.getElementById("tarjeta-cvv")?.addEventListener("input", (e) => { e.target.value = String(e.target.value || "").replace(/\D/g, "").slice(0, 3); });
-  } else {
-    digitalBox.className = "mt-4 hidden";
-    digitalBox.innerHTML = "";
+  const efectivoBox = document.getElementById('box-efectivo');
+  const digitalBox = document.getElementById('box-pago-digital');
+  if (efectivoBox) efectivoBox.classList.toggle('hidden', metodo !== 'Efectivo al recoger');
+  if (digitalBox) {
+    const esDigital = metodo !== 'Efectivo al recoger';
+    digitalBox.className = esDigital ? 'mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4' : 'hidden';
+    digitalBox.textContent = esDigital
+      ? `Pago pendiente: solicita ${metodo} al personal al recoger tu pedido. No ingreses datos bancarios aqui; Caja confirma el pago.`
+      : '';
   }
   calcularVuelto();
 }
@@ -187,27 +178,11 @@ function validarClienteLlevar() {
 }
 
 function validarPagoSimulado(metodoPago) {
-  if (metodoPago === "Efectivo al recoger") {
-    const pagoCon = Number(document.getElementById("pago-con")?.value || 0);
+  // Solo se registra la preferencia; el cobro se confirma presencialmente en Caja.
+  if (metodoPago === 'Efectivo al recoger') {
+    const pagoCon = Number(document.getElementById('pago-con')?.value || 0);
     if (pagoCon > 0 && pagoCon < calcularTotal()) {
-      alert("El monto con el que pagara no puede ser menor al total.");
-      return false;
-    }
-    return true;
-  }
-  if (metodoPago === "Yape") {
-    const celular = telefonoLimpio(document.getElementById("celular-yape")?.value || "");
-    const codigo = String(document.getElementById("codigo-yape-simple")?.value || "").replace(/\D/g, "");
-    if (celular.length !== 9 || codigo.length !== 6) {
-      alert("Ingresa celular Yape de 9 digitos y codigo de 6 digitos.");
-      return false;
-    }
-  }
-  if (metodoPago === "Tarjeta") {
-    const numero = String(document.getElementById("tarjeta-numero")?.value || "").replace(/\D/g, "");
-    const cvv = String(document.getElementById("tarjeta-cvv")?.value || "").replace(/\D/g, "");
-    if (numero.length < 13 || cvv.length !== 3) {
-      alert("Ingresa datos de tarjeta validos para la simulacion.");
+      alert('El monto con el que pagara no puede ser menor al total.');
       return false;
     }
   }
@@ -248,7 +223,8 @@ function renderPedidoRegistrado(pedido, metodoPago, pagoCon, vueltoEstimado) {
         <p><strong>Cliente:</strong> ${escapeHtml(cliente)}</p>
         <p><strong>Celular:</strong> ${escapeHtml(pedido.telefono_llevar || pedido.telefono || "")}</p>
         <p><strong>Estado:</strong> ${escapeHtml(pedido.estadoPedido || pedido.estado || "Pendiente en cocina")}</p>
-        <p><strong>Metodo:</strong> ${escapeHtml(metodoPago)}</p>
+        <p><strong>Metodo preferido:</strong> ${escapeHtml(metodoPago)}</p>
+        <p><strong>Pago:</strong> Pendiente de confirmacion por Caja</p>
         <p><strong>Total:</strong> S/ ${soles(pedido.total)}</p>
         ${metodoPago === "Efectivo al recoger" ? `<p><strong>Vuelto estimado:</strong> S/ ${soles(vueltoEstimado)}</p>` : ""}
       </div>
@@ -283,7 +259,7 @@ async function confirmarPedidoLlevar() {
         telefono_llevar: datosCliente.celular,
         observacion_llevar: datosCliente.observacion,
         metodoPago,
-        estadoPago: esEfectivo ? "Pendiente" : "Pagado",
+        estadoPago: 'Pendiente',
         documento: "00000000",
         items: carritoResumen.map(itemApi),
       }),
@@ -294,7 +270,7 @@ async function confirmarPedidoLlevar() {
       metodoPago,
       pagoCon: esEfectivo ? pagoCon : calcularTotal(),
       vueltoEstimado: esEfectivo ? Math.max(pagoCon - calcularTotal(), 0) : 0,
-      estadoPago: esEfectivo ? "Pendiente" : "Pagado",
+      estadoPago: 'Pendiente',
     };
     localStorage.setItem("ultimoPedido", JSON.stringify(pedido));
     localStorage.setItem("ultimoCodigoLlevar", pedido.codigo_seguimiento || pedido.codigo_llevar || pedido.codigo || "");
