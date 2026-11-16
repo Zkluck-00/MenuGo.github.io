@@ -8,6 +8,22 @@ async function listarPedidosCocina(req, res) {
 
 // MEJORA: Validación de seguridad. Evita que desde el frontend hackeen el estado
 async function cambiarEstadoCocina(req, res) {
+    const idPedido = Number(req.params.id);
+
+  if (!Number.isSafeInteger(idPedido) || idPedido <= 0) {
+    return res.status(400).json({
+      ok: false,
+      message: "El identificador del pedido debe ser un número entero positivo."
+    });
+  }
+  const estadosPermitidos = ["preparando", "listo", "cancelado"];
+  const estado = req.body?.estado;
+
+  if (!estadosPermitidos.includes(estado)) {
+    return res.status(400).json({
+      ok: false,
+      message: "Cocina solo puede cambiar a preparando, listo o cancelado."
+    });
   const nuevoEstado = req.body.estado;
   
   // Array con los únicos estados que la cocina tiene permitido usar

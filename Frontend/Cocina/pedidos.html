@@ -26,6 +26,14 @@
                     </div>
                 </div>
 
+                <div class="flex flex-wrap items-center gap-3">
+                    <div class="bg-orange-50 border border-orange-200 text-orange-800 px-5 py-3 rounded-2xl font-semibold text-xs leading-relaxed max-w-xs shadow-sm">
+                        ⚠️ Al marcar un pedido como listo, aparecerá de inmediato en el panel del mesero.
+                    </div>
+                    <button id="btn-actualizar-cocina" type="button" onclick="recargarCocina()" class="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-2xl font-bold text-xs shadow-lg transition transform active:scale-95">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Actualizar
+                    </button>
                 <div class="bg-orange-100 text-orange-700 px-4 py-3 rounded-2xl font-semibold text-sm">
                     Cuando marques un pedido como listo, recién será visible para el mesero.
                 </div>
@@ -37,6 +45,133 @@
             </div>
         </header>
 
+        <!-- Barra de Filtros Interactivos Mejorada -->
+        <section class="bg-white rounded-3xl shadow-xl p-5 mb-8 border border-slate-100">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2.5 sm:items-center">
+                    <button onclick="filtrarPedidos('todos')"
+                        class="px-6 py-3 rounded-2xl bg-slate-900 text-white font-bold text-sm shadow-md hover:bg-slate-800 transition transform active:scale-95">
+                        🍽️ Todos
+                    </button>
+
+                    <button onclick="filtrarPedidos('Pendiente')"
+                        class="px-6 py-3 rounded-2xl bg-slate-100 text-slate-700 font-bold text-sm hover:bg-slate-200 transition transform active:scale-95">
+                        ⏳ Pendientes
+                    </button>
+
+                    <button onclick="filtrarPedidos('En preparación')"
+                        class="px-6 py-3 rounded-2xl bg-yellow-50 text-yellow-800 font-bold text-sm hover:bg-yellow-100 transition transform active:scale-95">
+                        🔥 En preparación
+                    </button>
+
+                    <button onclick="filtrarPedidos('listos')"
+                        class="px-6 py-3 rounded-2xl bg-emerald-50 text-emerald-800 font-bold text-sm hover:bg-emerald-100 transition transform active:scale-95">
+                        ✅ Listos
+                    </button>
+
+                    <!-- Botón para silenciar/activar sonido -->
+                    <button onclick="toggleSonido()" id="btn-sonido" 
+                        class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-2xl font-bold text-xs shadow-sm transition transform active:scale-95" 
+                        title="Activar/Desactivar sonido">
+                        🔊 Sonido ON
+                    </button>
+
+                    <!-- Botón para modo pantalla completa -->
+                    <button onclick="toggleFullscreen()" id="btn-fullscreen" 
+                        class="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-3 rounded-2xl font-bold text-xs shadow-sm transition transform active:scale-95" 
+                        title="Pantalla completa">
+                        🖥️ Pantalla Completa
+                    </button>
+                </div>
+                
+                <div id="filtro-activo" role="status"
+    class="text-xs font-bold text-slate-600 px-2">
+    Mostrando: Todos los pedidos
+</div>
+            </div>
+        </section>
+
+        <section aria-label="Resumen de pedidos"
+    class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-4">
+        <p class="text-sm font-bold text-slate-600">Pendientes</p>
+        <p id="total-pendientes" class="text-3xl font-black text-slate-900">—</p>
+    </div>
+
+    <div class="rounded-2xl border border-yellow-200 bg-yellow-50 p-4">
+        <p class="text-sm font-bold text-yellow-800">En preparación</p>
+        <p id="total-preparando" class="text-3xl font-black text-yellow-900">—</p>
+    </div>
+
+    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+        <p class="text-sm font-bold text-emerald-800">Listos</p>
+        <p id="total-listos" class="text-3xl font-black text-emerald-900">—</p>
+    </div>
+</section>
+        <form onsubmit="event.preventDefault(); buscarPedidosCocina();"
+    class="mb-6 rounded-2xl border border-slate-200 bg-white p-4">
+
+    <label for="buscar-pedido"
+        class="mb-2 block text-sm font-bold text-slate-700">
+        Buscar por código o mesa
+    </label>
+
+    <div class="flex flex-wrap gap-2">
+        <input id="buscar-pedido" type="search"
+            placeholder="Ejemplo: PED-12 o Mesa 3"
+            class="min-w-0 flex-1 rounded-xl border border-slate-300 px-4 py-3">
+
+        <button type="submit"
+            class="rounded-xl bg-slate-900 px-4 py-3 font-bold text-white">
+            Buscar
+        </button>
+
+        <button type="button" onclick="limpiarBusquedaCocina()"
+            class="rounded-xl bg-slate-100 px-4 py-3 font-bold text-slate-700">
+            Limpiar
+        </button>
+    </div>
+</form>
+<div class="mb-6">
+    <label for="filtro-tipo"
+        class="mb-2 block text-sm font-bold text-slate-700">
+        Tipo de consumo
+    </label>
+
+    <select id="filtro-tipo"
+        onchange="filtrarTipoCocina(this.value)"
+        class="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-4 py-3">
+        <option value="todos">Todos los tipos</option>
+        <option value="mesa">En mesa</option>
+        <option value="llevar">Para llevar</option>
+    </select>
+</div>
+<div class="mb-6">
+    <label for="orden-pedidos"
+        class="mb-2 block text-sm font-bold text-slate-700">
+        Orden de atención
+    </label>
+
+    <select id="orden-pedidos"
+        onchange="cambiarOrdenCocina(this.value)"
+        class="w-full sm:w-auto rounded-xl border border-slate-300 bg-white px-4 py-3">
+        <option value="antiguos">Más antiguos primero</option>
+        <option value="recientes">Más recientes primero</option>
+    </select>
+</div>
+<p id="ultima-actualizacion"
+    class="mb-4 text-sm font-medium text-slate-500">
+    Última carga exitosa: pendiente
+</p>
+<button type="button"
+    onclick="restablecerFiltrosCocina()"
+    class="mb-6 rounded-xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-100">
+    Restablecer filtros
+</button>
+<!-- Contenedor Principal de Pedidos -->
+        <main id="contenedor-pedidos" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            <!-- Los pedidos se cargan dinámicamente con cocina.js -->
         <!-- Filtros -->
         <section class="bg-white rounded-3xl shadow-md p-4 mb-6">
             <div class="flex flex-wrap gap-3 justify-center md:justify-start">
