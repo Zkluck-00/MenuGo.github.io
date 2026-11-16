@@ -5,7 +5,6 @@ const turnosCajaController = require('../controllers/turnos-caja.controller');
 const movimientosCajaController = require('../controllers/movimientos-caja.controller');
 const cierreTurnosController = require('../controllers/turnos-cierre.controller');
 const subcuentasController = require('../controllers/subcuentas.controller');
-const ticketController = require('../controllers/ticket.controller');
 const { autenticarPersonal, autorizarRoles } = require('../middleware/auth.middleware');
 
 router.use(autenticarPersonal, autorizarRoles('cajero', 'administrador'));
