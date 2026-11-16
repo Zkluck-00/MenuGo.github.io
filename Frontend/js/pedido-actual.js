@@ -164,7 +164,9 @@ async function cargarPedidosMesa() {
   const numero = String(mesa || "").match(/\d+/)?.[0];
   if (!numero) return [];
 
-  const data = await apiJson(`/pedidos/mesa/${encodeURIComponent(numero)}`);
+  const tokenMesa = obtenerTokenMesaActual();
+  if (!tokenMesa) throw new Error('Escanea nuevamente el QR de tu mesa.');
+  const data = await apiJson(`/pedidos/mesa/${encodeURIComponent(numero)}?token=${encodeURIComponent(tokenMesa)}`);
   const pedidos = data.data || [];
   return pedidos.filter((pedido) => !esCancelado(pedido) && !esPagado(pedido));
 }

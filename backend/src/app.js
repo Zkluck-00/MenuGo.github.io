@@ -73,42 +73,25 @@ app.get("/api/events", (req, res) => {
     },
   });
 
-  const onPedidoCreado = (pedido) =>
-    sendEvent({ type: "pedido:creado", data: pedido });
-
-  const onPedidoActualizado = (pedido) =>
-    sendEvent({ type: "pedido:actualizado", data: pedido });
-
-  const onMesaActualizada = (mesa) =>
-    sendEvent({ type: "mesa:actualizada", data: mesa });
-
-  const onCuentaActualizada = (cuenta) =>
-    sendEvent({ type: "cuenta:actualizada", data: cuenta });
-
-  const onPagoRegistrado = (pago) =>
-    sendEvent({ type: "pago:registrado", data: pago });
-
-  const onPagoCruzadoRegistrado = (pago) =>
-    sendEvent({ type: "pago:cruzado:registrado", data: pago });
-
-  const onCuentasActualizadas = (cuentas) =>
-    sendEvent({ type: "cuentas:actualizadas", data: cuentas });
-
-  const onComentarioMesa = (comentario) =>
-    sendEvent({ type: "comentario:mesa", data: comentario });
-
-  // Eventos para productos / platos
-  const onProductoNuevo = (producto) =>
-    sendEvent({ type: "producto:nuevo", data: producto });
-
-  const onProductoActualizado = (producto) =>
-    sendEvent({ type: "producto:actualizado", data: producto });
-
-  const onProductoEliminado = (producto) =>
-    sendEvent({ type: "producto:eliminado", data: producto });
-
-  const onProductoDisponibilidad = (producto) =>
-    sendEvent({ type: "producto:disponibilidad", data: producto });
+  // SSE publico: solo avisos de cambios, sin montos, datos de clientes ni tokens QR.
+  const idPublico = (valor) => {
+    const numero = Number(valor);
+    return Number.isSafeInteger(numero) && numero > 0 ? numero : null;
+  };
+  const avisoPedido = (pedido) => ({ id_pedido: idPublico(pedido?.id_pedido) });
+  const avisoCuenta = (cuenta) => ({ id_cuenta: idPublico(cuenta?.id_cuenta) });
+  const onPedidoCreado = (pedido) => sendEvent({ type: 'pedido:creado', data: avisoPedido(pedido) });
+  const onPedidoActualizado = (pedido) => sendEvent({ type: 'pedido:actualizado', data: avisoPedido(pedido) });
+  const onMesaActualizada = () => sendEvent({ type: 'mesa:actualizada', data: {} });
+  const onCuentaActualizada = (cuenta) => sendEvent({ type: 'cuenta:actualizada', data: avisoCuenta(cuenta) });
+  const onPagoRegistrado = () => sendEvent({ type: 'pago:registrado', data: {} });
+  const onPagoCruzadoRegistrado = () => sendEvent({ type: 'pago:cruzado:registrado', data: {} });
+  const onCuentasActualizadas = () => sendEvent({ type: 'cuentas:actualizadas', data: {} });
+  const onComentarioMesa = () => sendEvent({ type: 'comentario:mesa', data: {} });
+  const onProductoNuevo = () => sendEvent({ type: 'producto:nuevo', data: {} });
+  const onProductoActualizado = () => sendEvent({ type: 'producto:actualizado', data: {} });
+  const onProductoEliminado = () => sendEvent({ type: 'producto:eliminado', data: {} });
+  const onProductoDisponibilidad = () => sendEvent({ type: 'producto:disponibilidad', data: {} });
 
   eventEmitter.on("pedido:creado", onPedidoCreado);
   eventEmitter.on("pedido:actualizado", onPedidoActualizado);
