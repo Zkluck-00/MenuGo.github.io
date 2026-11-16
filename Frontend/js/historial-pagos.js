@@ -27,10 +27,7 @@ async function apiHist(ruta) {
 function accionesTicketHistorial(id) {
   const valido = window.MenuGoHistorialTicket?.idPagoValido(id);
   if (!valido) return '<span class="text-xs font-semibold text-slate-500">Sin ticket disponible</span>';
-  return `<div class="flex flex-wrap gap-2">
-    <button type="button" data-ticket-accion="ver" data-pago="${valido}" class="rounded-lg border border-orange-300 bg-orange-50 px-3 py-2 text-xs font-black text-orange-800 hover:bg-orange-100">Ver ticket</button>
-    <button type="button" data-ticket-accion="simular" data-pago="${valido}" class="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white hover:bg-slate-800">Reimprimir</button>
-  </div>`;
+  return `<button type="button" data-ticket-accion="simular" data-pago="${valido}" class="rounded-lg bg-slate-950 px-3 py-2 text-xs font-black text-white hover:bg-slate-800">Reimprimir</button>`;
 }
 async function cargarHistorialPagos() {
   const t = document.getElementById('tabla-pagos');

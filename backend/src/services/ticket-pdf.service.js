@@ -3,6 +3,10 @@
 // MenuGo - ticket interno de venta en papel termico virtual (58 mm / 80 mm).
 // No sustituye ni afirma emitir boletas/facturas electronicas SUNAT.
 
+const fs = require('node:fs');
+const path = require('node:path');
+const LOGO_TICKET = path.resolve(__dirname, '../../assets/logo-menugo-ticket.png');
+
 const MILIMETROS = Object.freeze([58, 80]);
 const PT_POR_MM = 72 / 25.4;
 const MAX_ALTURA_PT = 14000;
@@ -114,34 +118,37 @@ function prepararTicket(pago, detalles) {
 
 function maquetar(doc, ticket, ancho, medir) {
   const anchoPt = ancho * PT_POR_MM;
-  const margen = ancho === 58 ? 9 : 11;
+  const margen = ancho === 58 ? 9 : 12;
   const contenido = anchoPt - 2 * margen;
-  const tam = ancho === 58 ? 7.4 : 8.5;
-  let y = margen + 2;
+  const tam = ancho === 58 ? 7.45 : 8.35;
+  const naranja = '#ed6520';
+  const tinta = '#162133';
+  let y = margen + 4;
 
-  function texto(linea, { negrita = false, tamano = tam, alinear = 'left', espacio = 3 } = {}) {
+  function texto(linea, { negrita = false, tamano = tam, alinear = 'left', espacio = 3, color = tinta } = {}) {
     const valor = textoSeguro(linea, 300) || '-';
-    doc.font(negrita ? 'Helvetica-Bold' : 'Helvetica').fontSize(tamano).fillColor('#111111');
+    doc.font(negrita ? 'Helvetica-Bold' : 'Helvetica').fontSize(tamano).fillColor(color);
     const opciones = { width: contenido, align: alinear, lineGap: 1 };
     const alto = doc.heightOfString(valor, opciones);
     if (!medir) doc.text(valor, margen, y, opciones);
     y += alto + espacio;
   }
 
-  function divisor() {
+  function divisor({ color = '#b5bbc4', espacio = 6 } = {}) {
     if (!medir) {
-      doc.lineWidth(0.5).strokeColor('#777777').moveTo(margen, y + 3).lineTo(margen + contenido, y + 3).stroke();
+      doc.lineWidth(0.6).strokeColor(color).moveTo(margen, y + 2)
+        .lineTo(margen + contenido, y + 2).stroke();
     }
-    y += 11;
+    y += espacio + 5;
   }
 
-  function dosColumnas(izquierda, derecha, { negrita = false, espacio = 3 } = {}) {
-    const izq = textoSeguro(izquierda, 160);
-    const der = textoSeguro(derecha, 80);
-    const colDer = ancho === 58 ? 52 : 67;
-    const separacion = 4;
+  function dosColumnas(izquierda, derecha, { negrita = false, espacio = 4, color = tinta, tamano = tam } = {}) {
+    const izq = textoSeguro(izquierda, 160) || '-';
+    const der = textoSeguro(derecha, 90) || '-';
+    const colDer = ancho === 58 ? 53 : 68;
+    const separacion = 5;
     const colIzq = contenido - colDer - separacion;
-    doc.font(negrita ? 'Helvetica-Bold' : 'Helvetica').fontSize(tam).fillColor('#111111');
+    doc.font(negrita ? 'Helvetica-Bold' : 'Helvetica').fontSize(tamano).fillColor(color);
     const opcionesIzq = { width: colIzq, lineGap: 1 };
     const opcionesDer = { width: colDer, align: 'right', lineGap: 1 };
     const altoIzq = doc.heightOfString(izq, opcionesIzq);
@@ -153,39 +160,67 @@ function maquetar(doc, ticket, ancho, medir) {
     y += Math.max(altoIzq, altoDer) + espacio;
   }
 
-  texto('MENUGO', { negrita: true, tamano: ancho === 58 ? 13 : 15, alinear: 'center', espacio: 2 });
-  texto('TICKET INTERNO DE VENTA', { negrita: true, alinear: 'center', espacio: 2 });
-  texto('SIMULACION - NO VALIDO ANTE SUNAT', { tamano: ancho === 58 ? 6.3 : 7, alinear: 'center', espacio: 6 });
-  divisor();
-  texto(`Pago #${ticket.idPago}   Cuenta #${ticket.idCuenta}`);
-  if (ticket.idComprobante) texto(`Registro comprobante #${ticket.idComprobante}`);
-  texto(`Fecha (Peru): ${ticket.fecha}`);
-  texto(`Mesa(s): ${ticket.mesa}`);
-  texto(`Cajero: ${ticket.cajero}`);
-  if (ticket.participante) texto(`Subcuenta: ${ticket.participante}`);
-  texto(`Pagado por: ${ticket.pagadoPor}`);
-  divisor();
-  texto('PRODUCTOS PAGADOS', { negrita: true, alinear: 'center', espacio: 5 });
-  dosColumnas('Producto / detalle', 'Importe S/', { negrita: true, espacio: 5 });
-  for (const linea of ticket.lineas) {
-    dosColumnas(`${linea.descripcion} ${linea.nombre}`, (linea.importeCentavos / 100).toFixed(2), { espacio: 5 });
+  // Marca real, derivada de Frontend/img/Log.png. Se incluye localmente en backend
+  // para que Render no dependa de rutas publicas ni redes externas.
+  const ladoLogo = ancho === 58 ? 34 : 41;
+  if (!medir && typeof doc.image === 'function' && fs.existsSync(LOGO_TICKET)) {
+    doc.image(LOGO_TICKET, (anchoPt - ladoLogo) / 2, y, {
+      fit: [ladoLogo, ladoLogo], align: 'center', valign: 'center',
+    });
   }
+  y += ladoLogo + 4;
+  texto('MENUGO', { negrita: true, tamano: ancho === 58 ? 14 : 16, alinear: 'center', espacio: 2 });
+  texto('PUNTO DE VENTA', { negrita: true, tamano: ancho === 58 ? 7 : 8, alinear: 'center', espacio: 3, color: naranja });
+  texto('TICKET INTERNO DE VENTA', { negrita: true, alinear: 'center', espacio: 1 });
+  texto('NO VALIDO ANTE SUNAT', { tamano: ancho === 58 ? 6.5 : 7.1, alinear: 'center', espacio: 7, color: '#545d69' });
+  divisor({ color: naranja, espacio: 6 });
+
+  const tituloDocumento = ticket.tipoDocumento === 'Factura solicitada' ? 'FACTURA SOLICITADA'
+    : ticket.tipoDocumento === 'Boleta solicitada' ? 'BOLETA SOLICITADA'
+      : 'COMPROBANTE INTERNO';
+  texto(tituloDocumento, { negrita: true, tamano: ancho === 58 ? 8.5 : 10.5, alinear: 'center', espacio: 7, color: naranja });
+  dosColumnas('Registro de pago', `#${ticket.idPago}`, { negrita: true, espacio: 3 });
+  if (ticket.idComprobante) dosColumnas('Comprobante', `#${ticket.idComprobante}`);
+  dosColumnas('Cuenta', `#${ticket.idCuenta}`);
+  texto(`Fecha: ${ticket.fecha}`, { tamano: tam - .2 });
+  texto(`Mesa: ${ticket.mesa}`, { tamano: tam - .2 });
+  texto(`Cajero: ${ticket.cajero}`, { tamano: tam - .2 });
+  if (ticket.participante) texto(`Subcuenta: ${ticket.participante}`, { tamano: tam - .2 });
+  if (ticket.pagadoPor) texto(`Cliente: ${ticket.pagadoPor}`, { tamano: tam - .2 });
   divisor();
-  dosColumnas('TOTAL PAGADO', solesCentavos(ticket.totalCentavos), { negrita: true, espacio: 6 });
-  texto(`Metodo: ${ticket.metodo}`);
-  if (ticket.referencia) texto(`Referencia: ${ticket.referencia}`);
-  if (ticket.efectivo && ticket.recibido !== null) texto(`Recibido: ${solesCentavos(ticket.recibido)}`);
-  if (ticket.efectivo && ticket.vuelto !== null) texto(`Vuelto: ${solesCentavos(ticket.vuelto)}`);
-  divisor();
-  texto(ticket.tipoDocumento, { negrita: true, alinear: 'center' });
-  if (ticket.documentoCliente) texto(`Documento: ${ticket.documentoCliente}`);
-  if (ticket.razonSocial) texto(`Razon social: ${ticket.razonSocial}`);
-  divisor();
-  texto('Gracias por su visita', { negrita: true, alinear: 'center', espacio: 3 });
-  texto('Este ticket es de uso interno y no sustituye un comprobante electronico valido.', {
-    tamano: ancho === 58 ? 6.5 : 7.2, alinear: 'center', espacio: 4,
+
+  texto('DETALLE DE PRODUCTOS', { negrita: true, tamano: tam, alinear: 'center', espacio: 6 });
+  dosColumnas('Descripcion', 'Total', { negrita: true, color: '#535e6d', espacio: 5, tamano: tam - .4 });
+  for (const linea of ticket.lineas) {
+    dosColumnas(`${linea.descripcion}  ${linea.nombre}`, solesCentavos(linea.importeCentavos), { espacio: 6 });
+  }
+  divisor({ color: naranja, espacio: 7 });
+
+  // Banda del total, con contraste suficiente para visor y para impresora
+  // termica monocroma. La medicion reserva la misma altura en ambas pasadas.
+  const bandaAlto = ancho === 58 ? 28 : 32;
+  if (!medir && typeof doc.roundedRect === 'function') {
+    doc.roundedRect(margen - 2, y - 2, contenido + 4, bandaAlto, 5)
+      .fill('#fff1e5');
+  }
+  y += ancho === 58 ? 6 : 8;
+  dosColumnas('TOTAL PAGADO', solesCentavos(ticket.totalCentavos), {
+    negrita: true, espacio: 0, color: tinta, tamano: ancho === 58 ? 8.7 : 10.1,
   });
-  return y + margen + 3;
+  y += 9;
+  texto(`Metodo de pago: ${ticket.metodo}`, { espacio: 3 });
+  if (ticket.referencia) texto(`Referencia: ${ticket.referencia}`);
+  if (ticket.efectivo && ticket.recibido !== null) dosColumnas('Efectivo recibido', solesCentavos(ticket.recibido));
+  if (ticket.efectivo && ticket.vuelto !== null) dosColumnas('Vuelto', solesCentavos(ticket.vuelto), { negrita: true });
+  divisor();
+
+  if (ticket.documentoCliente) texto(`DNI/RUC: ${ticket.documentoCliente}`);
+  if (ticket.razonSocial) texto(`Razon social: ${ticket.razonSocial}`);
+  texto('Gracias por elegir MenuGo', { negrita: true, alinear: 'center', espacio: 4 });
+  texto('Registro interno: no sustituye una boleta o factura electronica SUNAT.', {
+    tamano: ancho === 58 ? 6.5 : 7.0, alinear: 'center', espacio: 6, color: '#535e6d',
+  });
+  return y + margen + 6;
 }
 
 function crearDocumentoTicket(ticket, ancho = 80, DocumentClass) {
