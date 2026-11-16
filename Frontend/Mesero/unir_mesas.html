@@ -37,10 +37,10 @@
           <p class="mt-2 text-sm font-semibold text-slate-500">Elige una mesa principal y una o más mesas secundarias. Las mesas en limpieza no se pueden unir.</p>
         </div>
 
-        <label class="block">
-          <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Mesa principal</span>
-          <select id="mesa-principal" onchange="renderOpcionesMesasSecundarias()" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500"></select>
-        </label>
+        <div class="block">
+         <label for="mesa-principal" class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500 cursor-pointer">Mesa principal</label>
+         <select id="mesa-principal" onchange="renderOpcionesMesasSecundarias()" class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500 cursor-pointer"></select>
+        </div>
 
         <div class="mt-4">
           <span class="mb-2 block text-xs font-black uppercase tracking-wide text-slate-500">Mesas a unir</span>
@@ -51,7 +51,7 @@
           Al confirmar, los pedidos activos de las mesas seleccionadas se unirán bajo una sola cuenta. Los QR de esas mesas deberían apuntar a la misma sesión cuando luego se conecte backend.
         </div>
 
-        <button type="submit" class="mt-5 w-full rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600">
+        <button type="submit" class="mt-5 w-full rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 transition-colors duration-300 hover:bg-orange-600">
           Confirmar unión de mesas
         </button>
       </form>
