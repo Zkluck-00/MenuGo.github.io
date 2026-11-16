@@ -36,6 +36,54 @@
 
   function porId(id) { return DOM?.getElementById(id) || null; }
 
+  // Abre el PDF del pago confirmado desde el boton de cobro. La pestaña se
+  // crea en el gesto del usuario para evitar bloqueos del navegador.
+  async function abrirPdfDespuesDeCobro(idPago, ancho = '80', aviso = () => {}) {
+    const id = idPagoValido(idPago);
+    if (!id || !['58', '80'].includes(String(ancho))) return false;
+    const nuevaVentana = global.open?.('about:blank', '_blank');
+    if (!nuevaVentana) {
+      aviso('El navegador bloqueo la ventana. Usa la impresora virtual o permite ventanas emergentes.');
+      return false;
+    }
+    try { nuevaVentana.opener = null; } catch (_) {}
+    try {
+      const token = global.obtenerTokenPersonal?.('cajero');
+      if (global.MENUGO_PERSONAL_BLOQUEADO || !token) {
+        throw new Error('Debes iniciar sesion como Cajero para imprimir este comprobante.');
+      }
+      const base = global.MENUGO_API || 'http://localhost:4000/api';
+      const respuesta = await global.fetch(rutaEndpointTicket(base, id, ancho), {
+        method: 'GET',
+        headers: global.headersAutenticadosPersonal?.('cajero', {Accept:'application/pdf'}) ||
+          {Authorization: `Bearer ${token}`, Accept:'application/pdf'},
+        cache: 'no-store',
+      });
+      if (!respuesta.ok) {
+        let mensaje = `No se pudo generar el comprobante (HTTP ${respuesta.status}).`;
+        try { const datos = await respuesta.json(); if (datos.message) mensaje = datos.message; } catch (_) {}
+        if (respuesta.status === 401) {
+          global.localStorage?.removeItem('menugo_cajero_sesion');
+        }
+        throw new Error(mensaje);
+      }
+      if (!String(respuesta.headers?.get('content-type') || '').toLowerCase().includes('application/pdf')) {
+        throw new Error('El servidor no devolvio un documento PDF.');
+      }
+      const pdf = await respuesta.blob();
+      if (!pdf?.size) throw new Error('El documento PDF esta vacio.');
+      const url = URL.createObjectURL(pdf);
+      nuevaVentana.location.href = url;
+      global.addEventListener?.('pagehide', () => URL.revokeObjectURL(url), {once:true});
+      aviso('PDF listo. Usa Imprimir o Ctrl+P en la nueva pestana para enviarlo a la impresora.');
+      return true;
+    } catch (error) {
+      try { nuevaVentana.close?.(); } catch (_) {}
+      aviso(error?.message || 'No se pudo preparar la impresion.');
+      return false;
+    }
+  }
+
   // Se utiliza en el cobro normal y en las subcuentas. El usuario decide si desea imprimir.
   function ofrecerImpresion(pago, opciones = {}) {
     const id = idPagoValido(pago?.id_pago);
@@ -55,9 +103,14 @@
         <p class="text-xs font-black uppercase tracking-widest text-emerald-700">Operación confirmada</p>
         <h2 id="titulo-confirmacion-ticket" class="mt-2 text-2xl font-black text-slate-950">¡Pago registrado!</h2>
         <p id="detalle-confirmacion-ticket" class="mt-2 text-sm font-semibold text-slate-600"></p>
-        <p class="mt-3 rounded-xl bg-orange-50 p-3 text-xs leading-5 text-orange-900">Puedes simular la salida del ticket y ver su PDF. Esta acción NO crea otro cobro.</p>
-        <a id="ir-impresora-ticket" class="mt-5 block rounded-xl bg-orange-500 px-5 py-3 text-center text-sm font-black text-white hover:bg-orange-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-slate-900" href="#">▤ Abrir impresora virtual</a>
-        <button id="cerrar-modal-ticket" type="button" class="mt-2 w-full rounded-xl border border-slate-200 px-5 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50">Continuar sin ticket</button>
+        <p class="mt-3 rounded-xl bg-orange-50 p-3 text-xs leading-5 text-orange-900">El cobro ya esta confirmado. Puedes imprimir el comprobante del pago sin registrar ninguna operacion adicional.</p>
+        <label class="mt-4 block text-xs font-black uppercase text-slate-600">Formato de papel termico
+          <select id="ancho-ticket-postpago" class="mt-1 block w-full rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm font-bold text-slate-900"><option value="80">80 mm (estandar)</option><option value="58">58 mm (compacto)</option></select>
+        </label>
+        <button id="imprimir-ticket-ahora" type="button" class="mt-4 w-full rounded-xl bg-orange-500 px-5 py-3 text-center text-sm font-black text-white hover:bg-orange-600">Abrir PDF para imprimir</button>
+        <a id="ir-impresora-ticket" class="mt-2 block rounded-xl border border-slate-200 px-5 py-3 text-center text-sm font-black text-slate-800 hover:bg-slate-50" href="#">Utilizar impresora virtual</a>
+        <p id="estado-ticket-confirmacion" role="status" class="mt-2 text-xs font-semibold text-slate-600" aria-live="polite"></p>
+        <button id="cerrar-modal-ticket" type="button" class="mt-2 w-full rounded-xl px-5 py-3 text-sm font-bold text-slate-500 hover:bg-slate-50">Continuar sin imprimir</button>
       </div>`;
     DOM.body.appendChild(modal);
 
@@ -65,12 +118,21 @@
     const montoTexto = Number.isFinite(importe) && importe >= 0 ? ` · S/ ${importe.toFixed(2)}` : '';
     modal.querySelector('#detalle-confirmacion-ticket').textContent = `Pago #${id}${montoTexto}. Tu operación está guardada en MenuGo.`;
     modal.querySelector('#ir-impresora-ticket').href = rutaImpresora(id, opciones.retorno);
+    modal.querySelector('#imprimir-ticket-ahora').addEventListener('click', () => {
+      const boton = modal.querySelector('#imprimir-ticket-ahora');
+      const ancho = modal.querySelector('#ancho-ticket-postpago')?.value || '80';
+      boton.disabled = true;
+      modal.querySelector('#estado-ticket-confirmacion').textContent = 'Preparando PDF de este pago...';
+      abrirPdfDespuesDeCobro(id, ancho, mensaje => {
+        modal.querySelector('#estado-ticket-confirmacion').textContent = mensaje;
+      }).finally(() => { boton.disabled = false; });
+    });
 
     const quitar = () => { modal.removeEventListener('keydown', teclado); modal.remove(); };
     const teclado = (evento) => { if (evento.key === 'Escape') quitar(); };
     modal.querySelector('#cerrar-modal-ticket').addEventListener('click', quitar);
     modal.addEventListener('keydown', teclado);
-    modal.querySelector('#ir-impresora-ticket').focus();
+    modal.querySelector('#imprimir-ticket-ahora').focus();
     return true;
   }
 
@@ -259,7 +321,7 @@
   }
 
   const api = {
-    ofrecerImpresion, iniciarPantalla, validarIdPago: idPagoValido,
+    ofrecerImpresion, abrirPdfDespuesDeCobro, iniciarPantalla, validarIdPago: idPagoValido,
     retornoSeguro, rutaImpresora, rutaEndpointTicket,
   };
   global.MenuGoTicket = api;
