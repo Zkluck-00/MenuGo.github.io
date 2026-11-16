@@ -604,6 +604,8 @@ async function enviarPagoSub(intento) {
     mensajeSub(respuesta.repetido
       ? `Pago #${respuesta.data?.id_pago} recuperado; no se duplico el cobro.`
       : `Pago individual registrado. Vuelto confirmado: ${monedaSub(respuesta.data?.vuelto)}.`, 'ok');
+    // Se muestra solo despues de confirmar o recuperar un pago existente.
+    window.MenuGoTicket?.ofrecerImpresion(respuesta.data, { retorno: 'dividir_cuenta.html' });
     await cargarDatosSub();
   } catch (error) {
     if ([400, 401, 403, 404, 422].includes(error.status)) borrarPendienteSub();
