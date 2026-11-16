@@ -253,3 +253,18 @@ test('22: modo reducido, reimpresion y pagehide liberan el PDF sin cambiar el se
   assert.equal(env.elementos['btn-imprimir-impresora'].disabled, true);
   assert.equal(env.llamadas.length, 1);
 });
+
+
+test('25: tras cobrar se ofrece impresion inmediata por GET sin segundo pago', async () => {
+  const env = entorno();
+  env.ventana.location = {href: ''};
+  const avisos = [];
+  const resultado = await env.window.MenuGoTicket.abrirPdfDespuesDeCobro(39, '80', msg => avisos.push(msg));
+  assert.equal(resultado, true);
+  assert.equal(env.llamadas.length, 1);
+  assert.equal(env.llamadas[0].config.method, 'GET');
+  assert.match(env.llamadas[0].url, /\/pagos\/39\/ticket\.pdf\?ancho=80/);
+  assert.deepEqual(env.ventanas[0], {url:'about:blank',dest:'_blank'});
+  assert.match(env.ventana.location.href, /^blob:/);
+  assert.match(avisos[0], /Ctrl\+P|Imprimir/);
+});

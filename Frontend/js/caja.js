@@ -284,6 +284,7 @@ function abrirCobroCaja(idCuenta) {
   actualizarCamposPagoCaja();
   actualizarComprobanteCaja();
   actualizarTotalCobroCaja();
+  window.MenuGoCobroAsistido?.iniciar(cuenta);
 }
 
 function cerrarCobroCaja() {
@@ -294,6 +295,7 @@ function cerrarCobroCaja() {
   document.getElementById('panel-cobro')?.classList.add('hidden');
   const contenido = document.getElementById('contenido-cobro');
   if (contenido) contenido.innerHTML = '';
+  window.MenuGoCobroAsistido?.limpiar();
 }
 
 function itemsCobroCaja() {
@@ -315,6 +317,7 @@ function actualizarTotalCobroCaja() {
   const el = document.getElementById('total-cobro-caja');
   if (el) el.textContent = solesCaja(total);
   actualizarVueltoCaja();
+  window.MenuGoCobroAsistido?.actualizarVistaPrevia();
 }
 
 // Misma precision monetaria que el backend del commit 05 (NUMERIC(12,2)).
@@ -408,7 +411,8 @@ function actualizarBotonCobroCaja() {
   const efectivoValido = metodo !== 'Efectivo' || evaluarEfectivoCaja(
     document.getElementById('monto-recibido-caja')?.value, total
   ).valido;
-  boton.disabled = pagoCajaEnCurso || total <= 0 || !efectivoValido;
+  const confirmacionExterna = window.MenuGoCobroAsistido?.puedeRegistrar(metodo) ?? true;
+  boton.disabled = pagoCajaEnCurso || total <= 0 || !efectivoValido || !confirmacionExterna;
   boton.textContent = pagoCajaEnCurso ? 'Registrando pago...' : 'Registrar cobro';
 }
 
@@ -439,9 +443,61 @@ function actualizarCamposPagoCaja() {
     // Evita suponer que el cliente entrego exactamente el importe del pedido.
     actualizarVueltoCaja();
   } else {
-    box.innerHTML = `<div class="rounded-2xl border border-purple-200 bg-purple-50 p-3"><label class="block"><span class="text-xs font-black uppercase text-purple-700">Codigo/referencia de aprobacion</span><input id="referencia-pago-caja" maxlength="30" class="mt-1 w-full rounded-xl border border-purple-200 bg-white px-3 py-2 font-bold" placeholder="Codigo de operacion"></label><p class="mt-2 text-xs text-purple-800">La referencia se registra manualmente; no verifica el pago con el banco.</p></div>`;
+    box.innerHTML = `<div class="rounded-2xl border border-purple-200 bg-purple-50 p-3">
+      <span class="block text-xs font-black uppercase text-purple-700">Código de referencia (3 dígitos)</span>
+      <div role="group" aria-label="Código de referencia de tres dígitos" class="mt-2 flex gap-3">
+        ${[1, 2, 3].map((numero) => `<input type="text" inputmode="numeric" pattern="[0-9]*" maxlength="1" data-referencia-digito="${numero - 1}" aria-label="Dígito ${numero} del código de referencia" autocomplete="off" class="h-12 w-12 rounded-xl border border-purple-200 bg-white text-center text-xl font-black text-slate-900 outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200" />`).join('')}
+      </div>
+      <input id="referencia-pago-caja" type="hidden" value="" />
+      <p id="ayuda-referencia-pago-caja" class="mt-2 text-xs text-purple-800">Escribe los tres números que aparecen en la operación. La referencia se registra manualmente; no verifica el pago con el banco.</p>
+    </div>`;
+    inicializarDigitosReferenciaCaja(box);
   }
+  window.MenuGoCobroAsistido?.mostrarMetodo(metodo);
   actualizarBotonCobroCaja();
+}
+
+function inicializarDigitosReferenciaCaja(contenedor) {
+  const digitos = Array.from(contenedor.querySelectorAll('[data-referencia-digito]'));
+  const referencia = contenedor.querySelector('#referencia-pago-caja');
+  if (digitos.length !== 3 || !referencia) return;
+
+  function guardarReferencia() {
+    referencia.value = digitos.map((entrada) => entrada.value).join('');
+    actualizarBotonCobroCaja();
+  }
+
+  digitos.forEach((entrada, indice) => {
+    entrada.addEventListener('input', () => {
+      const soloDigitos = entrada.value.replace(/\D/g, '');
+      entrada.value = soloDigitos.slice(-1);
+      guardarReferencia();
+      if (entrada.value && digitos[indice + 1]) digitos[indice + 1].focus();
+    });
+
+    entrada.addEventListener('keydown', (evento) => {
+      if (evento.key === 'Backspace' && !entrada.value && digitos[indice - 1]) {
+        digitos[indice - 1].focus();
+      } else if (evento.key === 'ArrowLeft' && digitos[indice - 1]) {
+        evento.preventDefault();
+        digitos[indice - 1].focus();
+      } else if (evento.key === 'ArrowRight' && digitos[indice + 1]) {
+        evento.preventDefault();
+        digitos[indice + 1].focus();
+      }
+    });
+
+    entrada.addEventListener('paste', (evento) => {
+      evento.preventDefault();
+      const pegados = (evento.clipboardData?.getData('text') || '').replace(/\D/g, '').slice(0, 3);
+      if (!pegados) return;
+      pegados.split('').forEach((digito, desplazamiento) => {
+        if (digitos[indice + desplazamiento]) digitos[indice + desplazamiento].value = digito;
+      });
+      guardarReferencia();
+      digitos[Math.min(indice + pegados.length, digitos.length - 1)]?.focus();
+    });
+  });
 }
 
 function actualizarVueltoCaja() {
@@ -482,6 +538,7 @@ function actualizarComprobanteCaja() {
     ? `<label class="block"><span class="text-xs font-black uppercase text-slate-500">RUC</span><input id="documento-caja" inputmode="numeric" maxlength="11" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold" placeholder="11 digitos"></label><label class="mt-2 block"><span class="text-xs font-black uppercase text-slate-500">Razon social</span><input id="razon-social-caja" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold"></label>`
     : `<label class="block"><span class="text-xs font-black uppercase text-slate-500">DNI</span><input id="documento-caja" inputmode="numeric" maxlength="8" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold" placeholder="8 digitos"></label>`;
   document.getElementById('documento-caja')?.addEventListener('input', function () { this.value = this.value.replace(/\D/g, ''); });
+  window.MenuGoCobroAsistido?.actualizarVistaPrevia();
 }
 
 async function registrarPagoCaja(event, idCuenta) {
@@ -507,7 +564,9 @@ async function registrarPagoCaja(event, idCuenta) {
     }
   } else {
     referencia = document.getElementById('referencia-pago-caja')?.value.trim() || '';
-    if (!referencia) return alert('Ingresa la referencia o codigo de aprobacion del pago.');
+    if (!referencia) return alert('Ingresa los tres dígitos de la referencia del pago.');
+    const motivo = window.MenuGoCobroAsistido?.motivoNoRegistrable(metodo);
+    if (motivo) return alert(motivo);
   }
 
   const tipo = document.getElementById('comprobante-caja')?.value || 'boleta';

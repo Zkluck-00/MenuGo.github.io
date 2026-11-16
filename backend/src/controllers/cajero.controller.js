@@ -48,8 +48,8 @@ function validarReferenciaPagoCaja(body, metodo) {
     throw new Error('Los pagos digitales y con tarjeta requieren una referencia de operacion.');
   }
   const referencia = valor.trim();
-  if (referencia.length < 3 || referencia.length > 100 || /[\u0000-\u001f\u007f]/.test(referencia)) {
-    throw new Error('Ingresa una referencia de operacion valida (3 a 100 caracteres, sin saltos de linea).');
+  if (!/^\d{3}$/.test(referencia)) {
+    throw new Error('Ingresa una referencia de operacion valida de exactamente 3 digitos.');
   }
   return referencia;
 }
@@ -845,14 +845,67 @@ async function listarPagos(req, res) {
 }
 
 async function listarComprobantes(req, res) {
+  // Consultas y resumen de calendario sobre registros existentes: nunca escribe
+  // pagos, comprobantes ni datos personales.
+  const filtros = req.query || {};
+  const tipo = String(filtros.tipo || '').trim().toLowerCase();
+  if (tipo && !['boleta', 'factura'].includes(tipo)) {
+    return res.status(400).json({ ok: false, message: 'Tipo de comprobante invalido.' });
+  }
+  const fechaValida = valor => {
+    if (typeof valor !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return false;
+    const d = new Date(`${valor}T12:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === valor;
+  };
+  const desde = filtros.desde || '';
+  const hasta = filtros.hasta || '';
+  if ((desde && !fechaValida(desde)) || (hasta && !fechaValida(hasta)) ||
+      (desde && hasta && desde > hasta)) {
+    return res.status(400).json({ ok: false, message: 'Rango de fechas invalido. Usa YYYY-MM-DD, con desde menor o igual a hasta.' });
+  }
+  const resumen = filtros.resumen === 'calendario';
+  if (filtros.resumen && !resumen) {
+    return res.status(400).json({ ok: false, message: 'Tipo de resumen invalido.' });
+  }
+  const pagina = Number(filtros.pagina || 1);
+  const limite = Number(filtros.limite || 24);
+  if (!Number.isSafeInteger(pagina) || pagina < 1 || pagina > 100000 ||
+      !Number.isSafeInteger(limite) || limite < 1 || limite > 100) {
+    return res.status(400).json({ ok: false, message: 'Paginacion invalida. El limite maximo es 100.' });
+  }
   try {
     await asegurarEsquemaCaja();
     const params = [];
-    const where = [`pg.estado_pago = 'pagado'`];
-    if (req.query.tipo) {
-      params.push(normalizar(req.query.tipo));
-      where.push(`co.tipo_comprobante = $${params.length}`);
+    const where = ["pg.estado_pago = 'pagado'"];
+    if (tipo) {
+      params.push(tipo);
+      where.push(`LOWER(co.tipo_comprobante) = $${params.length}`);
     }
+    if (desde) {
+      params.push(desde);
+      where.push(`co.fecha_emision >= $${params.length}::date`);
+    }
+    if (hasta) {
+      params.push(hasta);
+      where.push(`co.fecha_emision < ($${params.length}::date + INTERVAL '1 day')`);
+    }
+    const baseWhere = where.join(' AND ');
+    const baseSQL = `FROM comprobantes co INNER JOIN pagos pg ON pg.id_pago = co.id_pago WHERE ${baseWhere}`;
+    if (resumen) {
+      const { rows } = await cajeroPool.query(
+        `SELECT TO_CHAR(co.fecha_emision::date, 'YYYY-MM-DD') AS fecha,
+                COUNT(*)::int AS cantidad, COALESCE(SUM(pg.monto), 0) AS total
+         ${baseSQL}
+         GROUP BY co.fecha_emision::date ORDER BY co.fecha_emision::date ASC`, params
+      );
+      return res.json({ ok: true, data: rows, total: rows.reduce((s, r) => s + Number(r.cantidad || 0), 0) });
+    }
+    const { rows: totales } = await cajeroPool.query(
+      `SELECT COUNT(*)::int AS total, COALESCE(SUM(pg.monto), 0) AS monto_total ${baseSQL}`, params
+    );
+    const total = Number(totales[0]?.total || 0);
+    const montoTotal = String(totales[0]?.monto_total ?? '0.00');
+    const paramsPagina = [...params, limite, (pagina - 1) * limite];
     const { rows } = await cajeroPool.query(
       `SELECT co.*, pg.monto, pg.metodo_pago, pg.fecha_pago, pg.pagado_por,
               c.id_cuenta, gm.nombre_grupo, gm.mesa_principal,
@@ -862,15 +915,18 @@ async function listarComprobantes(req, res) {
        INNER JOIN cuentas c ON c.id_cuenta = pg.id_cuenta
        LEFT JOIN grupos_mesa gm ON gm.id_grupo_mesa = c.id_grupo_mesa
        LEFT JOIN trabajador t ON t.idtrabajador = pg.id_cajero
-       WHERE ${where.join(' AND ')}
-       ORDER BY co.fecha_emision DESC
-       LIMIT 500`,
-      params
+       WHERE ${baseWhere}
+       ORDER BY co.fecha_emision DESC, co.id_comprobante DESC
+       LIMIT $${paramsPagina.length - 1} OFFSET $${paramsPagina.length}`,
+      paramsPagina
     );
-    res.json({ ok: true, data: rows, total: rows.length });
+    return res.json({
+      ok: true, data: rows, total, monto_total: montoTotal, pagina, limite,
+      total_paginas: Math.max(1, Math.ceil(total / limite)),
+    });
   } catch (error) {
-    console.error('Error al listar comprobantes:', error);
-    res.status(500).json({ ok: false, message: 'Error al listar comprobantes', error: error.message });
+    console.error('Error al consultar comprobantes de Caja:', error);
+    return res.status(500).json({ ok: false, message: 'No se pudieron consultar los comprobantes.' });
   }
 }
 

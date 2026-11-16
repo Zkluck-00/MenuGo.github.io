@@ -281,13 +281,13 @@ test('23: una segunda vista sustituye a la anterior sin conservar el primer blob
   assert.match(env.fetches[1].urlPdf, /pagos\/43\/ticket\.pdf/);
 });
 
-test('23: el historial y comprobantes muestran dos acciones sin cambiar las rutas POST', () => {
+test('23: el historial conserva reimpresion sin vista previa redundante ni nuevas operaciones', () => {
   const pagos = leer('Frontend/js/historial-pagos.js');
   const recibos = leer('Frontend/js/facturacion.js');
   assert.match(pagos, /q\.set\('mios', '1'\)/);
-  assert.match(pagos, /data-ticket-accion="ver"/);
+  assert.doesNotMatch(pagos, /data-ticket-accion="ver"/);
   assert.match(pagos, /data-ticket-accion="simular"/);
-  assert.match(recibos, /data-ticket-accion="ver"/);
+  assert.doesNotMatch(recibos, /data-ticket-accion="ver"/);
   assert.match(recibos, /data-ticket-accion="simular"/);
   assert.doesNotMatch(pagos + recibos, /method:\s*['"](?:POST|PUT|PATCH|DELETE)['"]/);
 });
@@ -333,7 +333,7 @@ test('23: historial carga solo los pagos del cajero y muestra acciones existente
   assert.equal(env.solicitudes.length,1);
   assert.match(env.solicitudes[0].url,/\/cajero\/pagos\?mios=1/);
   const html=env.contenedor('tabla-pagos').innerHTML;
-  assert.match(html,/Ver ticket/);
+  assert.doesNotMatch(html,/Ver ticket/);
   assert.match(html,/Reimprimir/);
   assert.match(html,/data-pago="87"/);
   assert.match(html,/42\.50/);
@@ -349,13 +349,13 @@ test('23: historial escapa el texto del nombre de mesa y los IDs al renderizar',
   assert.match(html,/Sin ticket disponible/);
 });
 
-test('23: facturacion muestra vista previa y reimpresion para un pago registrado', async () => {
+test('23: facturacion consulta comprobantes por periodo y ofrece reimpresion', async () => {
   const env = await ejecutarPagina('Frontend/js/facturacion.js', [
     {id_comprobante:7,id_pago:92,tipo_comprobante:'boleta',monto:'25.00',fecha_emision:'2026-11-15T20:30:00Z',metodo_pago:'yape',dni:'12345678'},
   ]);
-  assert.match(env.solicitudes[0].url,/\/cajero\/comprobantes$/);
+  assert.match(env.solicitudes[0].url,/\/cajero\/comprobantes\?/);
   const html=env.contenedor('lista-comprobantes').innerHTML;
-  assert.match(html,/Ver ticket PDF/);
+  assert.doesNotMatch(html,/Ver ticket PDF/);
   assert.match(html,/Reimprimir/);
   assert.match(html,/data-pago="92"/);
 });

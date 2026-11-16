@@ -27,14 +27,29 @@
         </label>
 
         <label class="block">
-          <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Contrasena</span>
-          <input id="login-password" type="password" autocomplete="current-password" required
-            class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500"
-            placeholder="Ingresa tu contrasena" />
+          <span class="mb-1 block text-xs font-black uppercase tracking-wide text-slate-500">Contraseña</span>
+          <div class="relative">
+            <input id="login-password" type="password" autocomplete="current-password" required
+              class="w-full rounded-2xl border border-slate-300 bg-white px-4 py-3 pr-12 text-sm font-bold outline-none focus:border-orange-500"
+              placeholder="Ingresa tu contraseña" />
+            
+            <!-- Botón con icono de ojo -->
+            <button type="button" onclick="togglePasswordVisibility()" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 focus:outline-none">
+              <!-- Icono Ojo Abierto -->
+              <svg id="icono-ojo" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              <!-- Icono Ojo Tachado (oculto por defecto) -->
+              <svg id="icono-ojo-tachado" xmlns="http://www.w3.org/2000/svg" class="hidden h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a10.05 10.05 0 012.355-3.66m3.585-2.222A9.956 9.956 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.027 10.027 0 01-4.132 5.411m0 0L21 21" />
+              </svg>
+            </button>
+          </div>
         </label>
 
         <button type="submit" class="w-full rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 hover:bg-orange-600">
-          Iniciar sesion
+          Iniciar sesión
         </button>
       </form>
       
@@ -46,7 +61,26 @@
     </section>
   </main>
 
+  <!-- Script para alternar la visibilidad de la contraseña -->
+  <script>
+    function togglePasswordVisibility() {
+      const passwordInput = document.getElementById('login-password');
+      const iconoOjo = document.getElementById('icono-ojo');
+      const iconoOjoTachado = document.getElementById('icono-ojo-tachado');
+
+      if (passwordInput.type === 'password') {
+        passwordInput.type = 'text';
+        iconoOjo.classList.add('hidden');
+        iconoOjoTachado.classList.remove('hidden');
+      } else {
+        passwordInput.type = 'password';
+        iconoOjo.classList.remove('hidden');
+        iconoOjoTachado.classList.add('hidden');
+      }
+    }
+  </script>
+
   <script src="../js/config.js"></script>
-<script src="../js/personal-auth.js"></script>
+  <script src="../js/personal-auth.js"></script>
 </body>
 </html>

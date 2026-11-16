@@ -30,6 +30,7 @@ class FakePDF extends Readable {
   _read() {}
   font(valor) { this.trazos.push(['font', valor]); return this; }
   fontSize(valor) { this.trazos.push(['size', valor]); return this; }
+  image(ruta) { this.trazos.push(['image', String(ruta)]); return this; }
   fillColor() { return this; }
   strokeColor() { return this; }
   lineWidth() { return this; }
@@ -116,9 +117,11 @@ test('21: layout termico dibuja el ticket sin paginacion A4', () => {
     assert.ok(textos.includes(termino), `Falta ${termino}`);
   }
   assert.ok(measure58.opciones.size[0] > 160);
+  assert.ok(final58.trazos.some(x => x[0] === 'image' && x[1].endsWith('logo-menugo-ticket.png')), 'El PDF de 58 mm incluye el logo MenuGo');
   FakePDF.instancias.length = 0;
   const doc80 = servicio.crearDocumentoTicket(ticket, '80', FakePDF);
   assert.ok(Math.abs(doc80.opciones.size[0] - 226.77) < 1);
+  assert.ok(FakePDF.instancias[1].trazos.some(x => x[0] === 'image'), 'El PDF de 80 mm incluye el logo');
 });
 
 test('21: la ruta del ticket es GET, protegida por autenticacion previa y no cobra de nuevo', () => {

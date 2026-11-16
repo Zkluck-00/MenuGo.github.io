@@ -164,7 +164,6 @@ if (indicadorActualizacion) {
   .sort(compararPedidosCocina);
   const horaActual = new Date().toLocaleTimeString();
 
-  const pedidosFiltrados = pedidosActivosCocina().filter(coincideFiltro);
   if (pedidosFiltrados.length === 0) {
     contenedor.innerHTML = `
       <div class="col-span-full rounded-3xl border border-dashed border-slate-300 bg-white p-10 text-center shadow-sm">
@@ -177,23 +176,7 @@ if (indicadorActualizacion) {
   contenedor.innerHTML = pedidosFiltrados.map(renderPedido).join("");
 }
 
-  if (!observacion) {
-    return `
-      <p class="mt-2 text-xs font-medium text-slate-400">
-        Sin observaciones
-      </p>
-    `;
-  }
 
-  return `
-    <div class="mt-3 rounded-xl border border-amber-300 bg-amber-50 p-3">
-      <p class="text-xs font-black uppercase tracking-wide text-amber-800">
-        Observaciones del cliente
-      </p>
-      <p class="mt-1 whitespace-pre-line break-words text-sm font-semibold text-amber-950">${escapeHtml(observacion)}</p>
-    </div>
-  `;
-}
 function actualizarResumenCocina() {
   const activos = pedidosActivosCocina();
 
@@ -499,33 +482,7 @@ const mensajeListo = paraLlevar
           </div>
 
           ${acciones}
-    ? `<div class="rounded-2xl bg-emerald-50 p-4 text-center text-sm font-black text-emerald-700">
-         Pedido listo. Desde este momento aparece en el panel del mesero para entregarlo.
-       </div>`
-    : `<div class="grid grid-cols-1 gap-3">
-         ${estadoDb(pedido) !== "preparando" ? `<button type="button" onclick="cambiarEstado('${escapeHtml(String(pedido.id_pedido || pedido.id))}', 'preparando')" class="rounded-2xl bg-yellow-400 px-4 py-3 text-sm font-black text-slate-950 hover:bg-yellow-500">En preparacion</button>` : ""}
-         <button type="button" onclick="cambiarEstado('${escapeHtml(String(pedido.id_pedido || pedido.id))}', 'listo')" class="rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white hover:bg-emerald-700">${textoListo}</button>
-       </div>`;
-
-  return `
-    <article class="rounded-3xl border border-slate-200 bg-white p-5 shadow-lg shadow-slate-900/5">
-      <div class="mb-4 flex items-start justify-between gap-3">
-        <div>
-          <p class="text-sm font-black uppercase tracking-wide text-slate-500">Pedido</p>
-          <h2 class="text-2xl font-black text-slate-950">${escapeHtml(pedido.codigo || `PED-${pedido.id_pedido || pedido.id}`)}</h2>
-          <p class="mt-1 text-sm font-semibold text-slate-500">${escapeHtml(pedido.fecha || "")} ${escapeHtml(pedido.hora || "")}</p>
         </div>
-        <span class="rounded-full px-3 py-1.5 text-sm font-black ${colorEstado(estado)}">${escapeHtml(estado)}</span>
-      </div>
-      <div class="mb-4 rounded-2xl bg-slate-50 p-4 text-sm">
-        <p><strong>Tipo:</strong> ${escapeHtml(pedido.tipoConsumo || pedido.tipo_pedido || "No definido")}</p>
-        <p><strong>Mesa:</strong> ${escapeHtml(pedido.mesa || "No aplica")}</p>
-        <p><strong>Cliente:</strong> ${escapeHtml(pedido.cliente || pedido.nombre_cliente || "Consumidor final")}</p>
-        ${esPedidoLlevar(pedido) ? `<p><strong>Celular:</strong> ${escapeHtml(pedido.telefono_llevar || pedido.telefono || "No registrado")}</p>` : ""}
-        <p><strong>Total:</strong> S/ ${soles(pedido.total)}</p>
-      </div>
-      <ul class="mb-4 space-y-2">${productosHtml}</ul>
-      ${acciones}
     </article>`;
 }
 
