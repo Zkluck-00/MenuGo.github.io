@@ -48,8 +48,8 @@ function validarReferenciaPagoCaja(body, metodo) {
     throw new Error('Los pagos digitales y con tarjeta requieren una referencia de operacion.');
   }
   const referencia = valor.trim();
-  if (referencia.length < 3 || referencia.length > 100 || /[\u0000-\u001f\u007f]/.test(referencia)) {
-    throw new Error('Ingresa una referencia de operacion valida (3 a 100 caracteres, sin saltos de linea).');
+  if (!/^\d{3}$/.test(referencia)) {
+    throw new Error('Ingresa una referencia de operacion valida de exactamente 3 digitos.');
   }
   return referencia;
 }

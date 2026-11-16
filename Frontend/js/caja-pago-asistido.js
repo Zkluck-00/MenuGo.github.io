@@ -251,13 +251,14 @@
     if (!metodoExterno(metodo)) return true;
     const verificado = DOM?.getElementById('confirmacion-externa-caja')?.checked === true;
     const referencia = DOM?.getElementById('referencia-pago-caja')?.value?.trim() || '';
-    return verificado && referencia.length > 0;
+    return verificado && /^\d{3}$/.test(referencia);
   }
 
   function motivoNoRegistrable(metodo) {
     if (!metodoExterno(metodo) || puedeRegistrar(metodo)) return '';
-    if (!DOM?.getElementById('referencia-pago-caja')?.value?.trim()) {
-      return 'Anota la referencia que muestra la aplicación o el POS real.';
+    const referencia = DOM?.getElementById('referencia-pago-caja')?.value?.trim() || '';
+    if (!/^\d{3}$/.test(referencia)) {
+      return 'Ingresa los tres dígitos de la referencia que muestra la aplicación o el POS real.';
     }
     return 'Antes de registrar el cobro, confirma que verificaste el pago REAL en Yape, Plin o en el POS físico.';
   }
