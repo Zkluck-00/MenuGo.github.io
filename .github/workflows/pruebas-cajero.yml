@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/cajero-mejoras
+      - feature/cajero-tickets
       - main
   pull_request:
     branches:
@@ -19,9 +20,9 @@ concurrency:
 
 jobs:
   pruebas-cajero:
-    name: Sintaxis y pruebas de regresion
+    name: Sintaxis, regresion y PDF termico
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
 
     steps:
       - name: Descargar el repositorio
@@ -31,6 +32,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+
+      - name: Instalar dependencias bloqueadas del backend
+        run: npm ci --prefix backend --no-audit --no-fund
 
       - name: Verificar sintaxis JavaScript
         shell: bash
@@ -40,3 +46,6 @@ jobs:
 
       - name: Ejecutar pruebas automatizadas
         run: node --test backend/test/*.test.cjs
+
+      - name: Comprobar PDF termico real sin base de datos
+        run: node backend/scripts/ticket-release-check.cjs
