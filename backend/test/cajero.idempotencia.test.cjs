@@ -71,6 +71,9 @@ function prepararBackend({ errorCommitLuegoDeGuardar = false } = {}) {
           return { rows: previo ? [previo] : [] };
         }
         if (/SELECT id_turno FROM public\.turnos_caja/.test(texto)) {
+  return { rows: [{ id_turno: 777 }] };
+}
+        if (/SELECT id_turno FROM public\.turnos_caja/.test(texto)) {
           return { rows: [{ id_turno: 777 }] };
         }
         if (/SELECT id_cuenta, id_grupo_mesa, estado, total FROM cuentas/.test(texto)) {
