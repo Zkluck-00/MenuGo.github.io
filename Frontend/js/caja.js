@@ -554,6 +554,8 @@ async function registrarPagoCaja(event, idCuenta) {
         ? `Pago registrado correctamente. Vuelto confirmado: ${solesCaja(vueltoConfirmado)}.`
         : 'Pago registrado correctamente por Caja.';
     mostrarNotificacionCaja(mensaje);
+    // Solo se ofrece el ticket DESPUES de que la API confirma el pago.
+    window.MenuGoTicket?.ofrecerImpresion(registro.data, { retorno: 'cajero.html' });
     await recargarCaja();
     if (typeof window.actualizarTurnoCaja === 'function') await window.actualizarTurnoCaja();
   } catch (error) {
