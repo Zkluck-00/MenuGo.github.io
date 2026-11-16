@@ -284,6 +284,7 @@ function abrirCobroCaja(idCuenta) {
   actualizarCamposPagoCaja();
   actualizarComprobanteCaja();
   actualizarTotalCobroCaja();
+  window.MenuGoCobroAsistido?.iniciar(cuenta);
 }
 
 function cerrarCobroCaja() {
@@ -294,6 +295,7 @@ function cerrarCobroCaja() {
   document.getElementById('panel-cobro')?.classList.add('hidden');
   const contenido = document.getElementById('contenido-cobro');
   if (contenido) contenido.innerHTML = '';
+  window.MenuGoCobroAsistido?.limpiar();
 }
 
 function itemsCobroCaja() {
@@ -315,6 +317,7 @@ function actualizarTotalCobroCaja() {
   const el = document.getElementById('total-cobro-caja');
   if (el) el.textContent = solesCaja(total);
   actualizarVueltoCaja();
+  window.MenuGoCobroAsistido?.actualizarVistaPrevia();
 }
 
 // Misma precision monetaria que el backend del commit 05 (NUMERIC(12,2)).
@@ -408,7 +411,8 @@ function actualizarBotonCobroCaja() {
   const efectivoValido = metodo !== 'Efectivo' || evaluarEfectivoCaja(
     document.getElementById('monto-recibido-caja')?.value, total
   ).valido;
-  boton.disabled = pagoCajaEnCurso || total <= 0 || !efectivoValido;
+  const confirmacionExterna = window.MenuGoCobroAsistido?.puedeRegistrar(metodo) ?? true;
+  boton.disabled = pagoCajaEnCurso || total <= 0 || !efectivoValido || !confirmacionExterna;
   boton.textContent = pagoCajaEnCurso ? 'Registrando pago...' : 'Registrar cobro';
 }
 
@@ -441,6 +445,7 @@ function actualizarCamposPagoCaja() {
   } else {
     box.innerHTML = `<div class="rounded-2xl border border-purple-200 bg-purple-50 p-3"><label class="block"><span class="text-xs font-black uppercase text-purple-700">Codigo/referencia de aprobacion</span><input id="referencia-pago-caja" maxlength="30" class="mt-1 w-full rounded-xl border border-purple-200 bg-white px-3 py-2 font-bold" placeholder="Codigo de operacion"></label><p class="mt-2 text-xs text-purple-800">La referencia se registra manualmente; no verifica el pago con el banco.</p></div>`;
   }
+  window.MenuGoCobroAsistido?.mostrarMetodo(metodo);
   actualizarBotonCobroCaja();
 }
 
@@ -482,6 +487,7 @@ function actualizarComprobanteCaja() {
     ? `<label class="block"><span class="text-xs font-black uppercase text-slate-500">RUC</span><input id="documento-caja" inputmode="numeric" maxlength="11" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold" placeholder="11 digitos"></label><label class="mt-2 block"><span class="text-xs font-black uppercase text-slate-500">Razon social</span><input id="razon-social-caja" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold"></label>`
     : `<label class="block"><span class="text-xs font-black uppercase text-slate-500">DNI</span><input id="documento-caja" inputmode="numeric" maxlength="8" class="mt-1 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 font-bold" placeholder="8 digitos"></label>`;
   document.getElementById('documento-caja')?.addEventListener('input', function () { this.value = this.value.replace(/\D/g, ''); });
+  window.MenuGoCobroAsistido?.actualizarVistaPrevia();
 }
 
 async function registrarPagoCaja(event, idCuenta) {
@@ -508,6 +514,8 @@ async function registrarPagoCaja(event, idCuenta) {
   } else {
     referencia = document.getElementById('referencia-pago-caja')?.value.trim() || '';
     if (!referencia) return alert('Ingresa la referencia o codigo de aprobacion del pago.');
+    const motivo = window.MenuGoCobroAsistido?.motivoNoRegistrable(metodo);
+    if (motivo) return alert(motivo);
   }
 
   const tipo = document.getElementById('comprobante-caja')?.value || 'boleta';
