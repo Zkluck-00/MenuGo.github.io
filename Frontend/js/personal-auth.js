@@ -10,28 +10,9 @@ const PERSONAL_AUTH_KEYS = {
 const API_BASE_PERSONAL = window.MENUGO_API || 'http://localhost:4000/api';
 
 const PERSONAL_CREDENTIALS = {
-  mesero: {
-    nombre: 'Mesero MenuGo',
-    email: 'Mesero@MenuGo.com',
-    password: 'MeseroGo321#',
-    rol: 'Mesero',
-    inicio: 'mesas.html',
-    permitirFallbackLocal: true
-  },
-  cocina: {
-    nombre: 'Cocina MenuGo',
-    email: 'Cocina@MenuGo.com',
-    password: 'CocinaGo321#',
-    rol: 'Cocina',
-    inicio: 'pedidos.html',
-    permitirFallbackLocal: true
-  },
-  cajero: {
-    nombre: 'Cajero MenuGo',
-    rol: 'Cajero',
-    inicio: 'cajero.html',
-    permitirFallbackLocal: false
-  }
+  mesero: { nombre: 'Mesero MenuGo', rol: 'Mesero', inicio: 'mesas.html' },
+  cocina: { nombre: 'Cocina MenuGo', rol: 'Cocina', inicio: 'pedidos.html' },
+  cajero: { nombre: 'Cajero MenuGo', rol: 'Cajero', inicio: 'cajero.html' },
 };
 
 function normalizarPersonal(valor) {
@@ -61,7 +42,9 @@ function obtenerSesionPersonal(rol) {
 
   try {
     const sesion = JSON.parse(localStorage.getItem(key) || 'null');
-    if (!sesion || normalizarPersonal(sesion.rol) !== rolNormalizado) {
+    if (!sesion || normalizarPersonal(sesion.rol) !== rolNormalizado ||
+        typeof sesion.token !== 'string' || !sesion.token ||
+        !Number.isSafeInteger(Number(sesion.id_trabajador)) || Number(sesion.id_trabajador) <= 0) {
       localStorage.removeItem(key);
       return null;
     }
@@ -93,51 +76,27 @@ async function iniciarSesionPersonal(rol, email, password) {
   const key = obtenerKeySesionPersonal(rolNormalizado);
   if (!config || !key) throw new Error('Rol no valido.');
 
-  try {
-    const response = await fetch(`${API_BASE_PERSONAL}/admin/personal/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ usuario: email, clave: password, rol: rolNormalizado })
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok || data.ok === false) throw new Error(data.message || 'Credenciales invalidas');
-
-    const sesion = {
-      id_trabajador: data.data?.id_trabajador || null,
-      email: data.data?.email || email,
-      nombre: data.data?.nombre || config.nombre,
-      rol: rolNormalizado,
-      rolTexto: data.data?.rol || config.rol,
-      token: data.token || '',
-      inicioSesion: new Date().toISOString()
-    };
-
-    localStorage.setItem(key, JSON.stringify(sesion));
-    return sesion;
-  } catch (error) {
-    if (!config.permitirFallbackLocal) {
-      throw new Error(error.message || 'No se pudo iniciar sesion contra la base de datos.');
-    }
-
-    const emailCorrecto = normalizarPersonal(email) === normalizarPersonal(config.email);
-    const passwordCorrecto = String(password || '') === config.password;
-    if (!emailCorrecto || !passwordCorrecto) {
-      throw new Error(error.message || 'Correo o contrasena incorrectos.');
-    }
-
-    const sesion = {
-      id_trabajador: null,
-      email: config.email,
-      nombre: config.nombre,
-      rol: rolNormalizado,
-      rolTexto: config.rol,
-      token: '',
-      inicioSesion: new Date().toISOString(),
-      sesionLocal: true
-    };
-    localStorage.setItem(key, JSON.stringify(sesion));
-    return sesion;
+  const response = await fetch(`${API_BASE_PERSONAL}/admin/personal/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ usuario: email, clave: password, rol: rolNormalizado }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) throw new Error(data.message || 'Credenciales invalidas.');
+  if (!data.token || !Number.isSafeInteger(Number(data.data?.id_trabajador))) {
+    throw new Error('El servidor no entrego una sesion valida.');
   }
+  const sesion = {
+    id_trabajador: Number(data.data.id_trabajador),
+    email: data.data?.email || email,
+    nombre: data.data?.nombre || config.nombre,
+    rol: rolNormalizado,
+    rolTexto: data.data?.rol || config.rol,
+    token: data.token,
+    inicioSesion: new Date().toISOString(),
+  };
+  localStorage.setItem(key, JSON.stringify(sesion));
+  return sesion;
 }
 
 function cerrarSesionPersonal(rol = null) {
