@@ -70,9 +70,12 @@ async function autenticarPersonal(req, res, next) {
       };
     } else {
       const { rows } = await adminPool.query(
-        'SELECT idadministrador, estado FROM administrador WHERE idadministrador = $1 LIMIT 1', [id]
+        'SELECT idadministrador, estado, version_sesion FROM administrador WHERE idadministrador = $1 LIMIT 1', [id]
       );
       if (!rows[0] || rows[0].estado !== true) return credencialesRequeridas(res);
+      if (Number(payload.version_sesion || 1) !== Number(rows[0].version_sesion || 1)) {
+        return credencialesRequeridas(res);
+      }
       req.personal = {
         id_trabajador: null, id_administrador: id, rol: 'administrador',
         nombre: String(payload.nombre || ''), email: String(payload.email || ''),
