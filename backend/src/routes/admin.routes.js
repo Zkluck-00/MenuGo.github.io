@@ -1,12 +1,17 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
+const adminAccessController = require('../controllers/admin-access.controller');
 const { autenticarPersonal, autorizarRoles } = require('../middleware/auth.middleware');
 
 // Solo el inicio de sesion y el chequeo de salud son publicos.
 router.post('/login', adminController.login);
 router.post('/personal/login', adminController.loginPersonal);
 router.get('/health', adminController.health);
+router.get('/auth/google/config', adminAccessController.configuracionGoogle);
+router.post('/auth/google', adminAccessController.iniciarSesionGoogle);
+router.post('/password-recovery/request', adminAccessController.solicitarRecuperacion);
+router.post('/password-recovery/reset', adminAccessController.restablecerConCodigo);
 
 // Toda administracion, incluso las consultas GET, requiere rol Administrador.
 router.use(autenticarPersonal, autorizarRoles('administrador'));

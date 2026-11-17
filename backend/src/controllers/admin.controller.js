@@ -4,12 +4,13 @@ const jwt = require('jsonwebtoken');
 const { jwtSecret } = require('../middleware/auth.middleware');
 const eventEmitter = require('../utils/eventEmitter');
 
-function generarTokenAdministrador({ tipo, id, nombre, email }) {
+function generarTokenAdministrador({ tipo, id, nombre, email, versionSesion = 1 }) {
   return jwt.sign({
     tipo,
     rol: 'administrador',
     nombre,
     email,
+    version_sesion: Number(versionSesion || 1),
   }, jwtSecret(), { subject: String(id), expiresIn: '8h', algorithm: 'HS256' });
 }
 
@@ -257,7 +258,7 @@ async function login(req, res) {
 
   try {
     const result = await adminPool.query(
-      `SELECT idadministrador, usuario, clave, nombrecompleto, correo, estado
+      `SELECT idadministrador, usuario, clave, nombrecompleto, correo, estado, version_sesion
        FROM administrador
        WHERE LOWER(usuario) = LOWER($1) OR LOWER(correo) = LOWER($1)
        LIMIT 1`,
@@ -274,6 +275,7 @@ async function login(req, res) {
           token: generarTokenAdministrador({
             tipo: 'administrador', id: admin.idadministrador,
             nombre: admin.nombrecompleto, email: admin.correo,
+            versionSesion: admin.version_sesion,
           }),
           message: 'Inicio de sesion exitoso',
           data: {
