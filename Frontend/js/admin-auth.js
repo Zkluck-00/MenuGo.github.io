@@ -74,6 +74,37 @@ async function iniciarSesionAdmin(email, password) {
   return crearSesionAdmin(data.data, data.token);
 }
 
+async function respuestaAuthAdmin(ruta, body) {
+  const response = await fetch(`${API_BASE}${ruta}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) throw new Error(data.message || 'No se pudo completar la solicitud.');
+  return data;
+}
+
+async function iniciarSesionAdminGoogle(credential) {
+  const data = await respuestaAuthAdmin('/admin/auth/google', { credential });
+  return crearSesionAdmin(data.data, data.token);
+}
+
+async function obtenerConfiguracionGoogleAdmin() {
+  const response = await fetch(`${API_BASE}/admin/auth/google/config`);
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data.ok === false) throw new Error(data.message || 'No se pudo cargar Google.');
+  return data;
+}
+
+async function solicitarCodigoRecuperacionAdmin(correo) {
+  return respuestaAuthAdmin('/admin/password-recovery/request', { correo });
+}
+
+async function restablecerClaveAdmin(correo, codigo, nueva_clave) {
+  return respuestaAuthAdmin('/admin/password-recovery/reset', { correo, codigo, nueva_clave });
+}
+
 function protegerRutaAdmin() {
   const sesion = obtenerSesionAdmin();
   if (!sesion) window.location.replace('login.html?access=required');
