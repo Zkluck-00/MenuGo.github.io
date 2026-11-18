@@ -155,7 +155,7 @@ function leerFormularioTrabajadorAdmin() {
     id: document.getElementById("trabajador-id")?.value || `TRAB-${Date.now()}`,
     nombres: document.getElementById("trabajador-nombres")?.value.trim() || "",
     apellidos: document.getElementById("trabajador-apellidos")?.value.trim() || "",
-    documento: limpiarSoloNumerosAdmin(document.getElementById("trabajador-documento")?.value, 8),
+    documento: document.getElementById("trabajador-documento")?.value.trim() || "",
     telefono: limpiarSoloNumerosAdmin(document.getElementById("trabajador-telefono")?.value, 9),
     correo: document.getElementById("trabajador-correo")?.value.trim() || "",
     password: document.getElementById("trabajador-password")?.value || "",
@@ -186,8 +186,8 @@ function validarTrabajadorAdmin(trabajador) {
     throw new Error("La contraseña debe tener al menos 6 caracteres.");
   }
 
-  if (trabajador.documento.length !== 8) {
-    throw new Error("El documento debe tener exactamente 8 números.");
+  if (!/^\d{8}$/.test(trabajador.documento)) {
+    throw new Error("El DNI debe tener exactamente 8 dígitos.");
   }
 
   if (trabajador.telefono && trabajador.telefono.length !== 9) {
@@ -454,7 +454,7 @@ function configurarEventosTrabajadoresAdmin() {
   document.getElementById("form-reporte-trabajadores")?.addEventListener("submit", generarReporteTrabajadoresAdmin);
 
   document.getElementById("trabajador-documento")?.addEventListener("input", (event) => {
-    event.target.value = limpiarSoloNumerosAdmin(event.target.value, 12);
+    event.target.value = limpiarSoloNumerosAdmin(event.target.value, 8);
   });
 
   document.getElementById("trabajador-telefono")?.addEventListener("input", (event) => {
