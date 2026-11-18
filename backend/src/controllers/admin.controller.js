@@ -965,6 +965,10 @@ async function getTrabajadores(req, res) {
 
 async function createTrabajador(req, res) {
   const { nombres, apellidos, documento, telefono, correo, rol, estado, fecha_inicio_contrato, fecha_fin_contrato, observaciones, usuario_acceso, clave_acceso, password } = req.body;
+  const documentoFinal = String(documento || '').trim();
+  if (!/^\d{8}$/.test(documentoFinal)) {
+    return res.status(400).json({ ok: false, message: 'El DNI del trabajador debe tener exactamente 8 dígitos.' });
+  }
 
   let estadoFinal = 'Inactivo';
   if (estado === 'Activo' || estado === true || estado === 'true' || estado === 1 || estado === '1') {
@@ -986,7 +990,7 @@ async function createTrabajador(req, res) {
     const result = await adminPool.query(
       `INSERT INTO trabajador (nombres, apellidos, documento, telefono, correo, rol, estado, fechainiciocontrato, fechafincontrato, observaciones, usuario_acceso, clave_acceso)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING idtrabajador`,
-      [nombres, apellidos, documento, telefono, correoFinal, rol, estadoFinal, fecha_inicio_contrato, fecha_fin_contrato || null, observaciones || null, usuarioFinal, claveHash]
+      [nombres, apellidos, documentoFinal, telefono, correoFinal, rol, estadoFinal, fecha_inicio_contrato, fecha_fin_contrato || null, observaciones || null, usuarioFinal, claveHash]
     );
     res.status(201).json({ ok: true, message: 'Trabajador creado con credenciales de acceso', data: { idtrabajador: result.rows[0].idtrabajador } });
   } catch (error) {
@@ -998,6 +1002,10 @@ async function createTrabajador(req, res) {
 async function updateTrabajador(req, res) {
   const { id } = req.params;
   const { nombres, apellidos, documento, telefono, correo, rol, estado, fecha_inicio_contrato, fecha_fin_contrato, observaciones, usuario_acceso, clave_acceso, password } = req.body;
+  const documentoFinal = String(documento || '').trim();
+  if (!/^\d{8}$/.test(documentoFinal)) {
+    return res.status(400).json({ ok: false, message: 'El DNI del trabajador debe tener exactamente 8 dígitos.' });
+  }
 
   let estadoFinal = 'Inactivo';
   if (estado === 'Activo' || estado === true || estado === 'true' || estado === 1 || estado === '1') {
@@ -1028,7 +1036,7 @@ async function updateTrabajador(req, res) {
           usuario_acceso = $11,
           clave_acceso = $12
          WHERE idtrabajador = $13`,
-        [nombres, apellidos, documento, telefono, correoFinal, rol, estadoFinal, fecha_inicio_contrato, fecha_fin_contrato || null, observaciones || null, usuarioFinal, claveHash, id]
+        [nombres, apellidos, documentoFinal, telefono, correoFinal, rol, estadoFinal, fecha_inicio_contrato, fecha_fin_contrato || null, observaciones || null, usuarioFinal, claveHash, id]
       );
     } else {
       await adminPool.query(
@@ -1045,7 +1053,7 @@ async function updateTrabajador(req, res) {
           observaciones = $10,
           usuario_acceso = $11
          WHERE idtrabajador = $12`,
-        [nombres, apellidos, documento, telefono, correoFinal, rol, estadoFinal, fecha_inicio_contrato, fecha_fin_contrato || null, observaciones || null, usuarioFinal, id]
+        [nombres, apellidos, documentoFinal, telefono, correoFinal, rol, estadoFinal, fecha_inicio_contrato, fecha_fin_contrato || null, observaciones || null, usuarioFinal, id]
       );
     }
     res.json({ ok: true, message: 'Trabajador actualizado' });

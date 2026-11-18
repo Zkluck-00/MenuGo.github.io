@@ -76,8 +76,8 @@
 
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div class="min-w-0">
-              <label for="trabajador-documento" class="mb-1 block text-xs font-black uppercase tracking-wide text-orange-700">Documento</label>
-              <input id="trabajador-documento" type="text" required maxlength="12" class="w-full rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" placeholder="DNI o documento" />
+              <label for="trabajador-documento" class="mb-1 block text-xs font-black uppercase tracking-wide text-orange-700">DNI</label>
+              <input id="trabajador-documento" type="text" required inputmode="numeric" pattern="[0-9]{8}" minlength="8" maxlength="8" autocomplete="off" class="w-full rounded-2xl border border-orange-200 bg-white px-4 py-3 text-sm font-bold outline-none focus:border-orange-500" placeholder="DNI de 8 dígitos" />
             </div>
             <div class="min-w-0">
               <label for="trabajador-telefono" class="mb-1 block text-xs font-black uppercase tracking-wide text-orange-700">Teléfono</label>
