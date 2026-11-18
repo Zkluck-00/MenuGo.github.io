@@ -1,41 +1,35 @@
-const pedidosController = require("./pedidos.controller");
+'use strict';
 
+const pedidosController = require('./pedidos.controller');
+
+// La consulta de cocina utiliza los estados persistidos en PostgreSQL.
 async function listarPedidosCocina(req, res) {
-  req.query.rol = "cocina";
-  if (!req.query.estado) req.query.estado = "pendiente,preparando,listo,pagado";
+  req.query.rol = 'cocina';
+  if (!req.query.estado) req.query.estado = 'pendiente,preparando,listo,pagado';
   return pedidosController.listarPedidos(req, res);
 }
 
-// MEJORA: Validación de seguridad. Evita que desde el frontend hackeen el estado
+// Los permisos del usuario se comprueban mediante JWT en la ruta y en
+// pedidos.controller.js. Nunca se confia en un rol enviado por el frontend.
 async function cambiarEstadoCocina(req, res) {
-    const idPedido = Number(req.params.id);
-
+  const idPedido = Number(req.params.id);
   if (!Number.isSafeInteger(idPedido) || idPedido <= 0) {
     return res.status(400).json({
       ok: false,
-      message: "El identificador del pedido debe ser un número entero positivo."
+      message: 'El identificador del pedido debe ser un numero entero positivo.',
     });
   }
-  const estadosPermitidos = ["preparando", "listo", "cancelado"];
-  const estado = req.body?.estado;
 
+  const estado = String(req.body?.estado || '').trim().toLowerCase();
+  const estadosPermitidos = ['preparando', 'listo', 'cancelado'];
   if (!estadosPermitidos.includes(estado)) {
     return res.status(400).json({
       ok: false,
-      message: "Cocina solo puede cambiar a preparando, listo o cancelado."
+      message: 'Cocina solo puede cambiar a preparando, listo o cancelado.',
     });
-  const nuevoEstado = req.body.estado;
-  
-  // Array con los únicos estados que la cocina tiene permitido usar
-  const estadosPermitidosCocina = ["pendiente", "En preparación", "listo"];
-  
-  if (!estadosPermitidosCocina.includes(nuevoEstado)) {
-      return res.status(403).json({ 
-          error: `Acción denegada. El rol 'cocina' no puede cambiar el estado a '${nuevoEstado}'.` 
-      });
   }
 
-  req.body.rol = "cocina";
+  req.body.estado = estado;
   return pedidosController.actualizarEstadoPedido(req, res);
 }
 
