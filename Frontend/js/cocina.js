@@ -9,6 +9,28 @@ let tipoCocina = "todos";
 let ordenCocina = "antiguos";
 const UMBRAL_DEMORA_MINUTOS = 20;
 let sonidoActivo = true;
+function toggleSonido() {
+    sonidoActivo = !sonidoActivo;
+
+    const boton = document.getElementById("btn-sonido");
+
+    if (boton) {
+        boton.innerHTML = sonidoActivo
+            ? "🔊 Sonido ON"
+            : "🔇 Sonido OFF";
+    }
+}
+function reproducirSonido() {
+    if (!sonidoActivo) return;
+
+    const audio = new Audio(
+        "https://actions.google.com/sounds/v1/alarms/beep_short.ogg"
+    );
+
+    audio.play().catch(error => {
+        console.warn("No se pudo reproducir el sonido:", error);
+    });
+}
 
 function normalizar(valor) {
   return String(valor || "").trim().toLowerCase();
@@ -38,8 +60,26 @@ async function apiJson(url, options = {}) {
 }
 
 async function cargarPedidos() {
-  const data = await apiJson("/cocina/pedidos");
-  pedidos = data.data || [];
+    const data = await apiJson("/cocina/pedidos");
+
+    const pedidosNuevos = data.data || [];
+
+    const idsAnteriores = new Set(
+        pedidos.map(p => String(p.id_pedido || p.id))
+    );
+
+    const idsNuevos = new Set(
+        pedidosNuevos.map(p => String(p.id_pedido || p.id))
+    );
+
+    const hayPedidoNuevo = pedidos.length > 0 &&
+        [...idsNuevos].some(id => !idsAnteriores.has(id));
+
+    if (hayPedidoNuevo) {
+        reproducirSonido();
+    }
+
+    pedidos = pedidosNuevos;
 }
 
 function estadoPedido(pedido) {
@@ -620,5 +660,5 @@ document.addEventListener("DOMContentLoaded", () => {
   iniciarEscuchaEventosCocina();
   setInterval(() => {
     if (!document.hidden) mostrarPedidos();
-  }, 15000);
+  }, 10000);
 });
