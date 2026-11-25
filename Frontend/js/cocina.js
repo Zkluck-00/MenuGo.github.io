@@ -588,7 +588,33 @@ function iniciarEscuchaEventosCocina() {
   realTime.on("pedido:creado", handlePedidoActualizado);
   realTime.on("pedido:actualizado", handlePedidoActualizado);
 }
+// Activar y desactivar pantalla completa
+async function toggleFullscreen() {
+    try {
+        if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+        } else {
+            await document.exitFullscreen();
+        }
+    } catch (error) {
+        console.error("Error al cambiar pantalla completa:", error);
+        mostrarNotificacion(
+            "No se pudo activar la pantalla completa.",
+            "error"
+        );
+    }
+}
 
+// Actualizar el texto del botón según el estado
+document.addEventListener("fullscreenchange", () => {
+    const boton = document.getElementById("btn-fullscreen");
+
+    if (!boton) return;
+
+    boton.innerHTML = document.fullscreenElement
+        ? "⛶ Salir de pantalla completa"
+        : "🖥️ Pantalla Completa";
+});
 document.addEventListener("DOMContentLoaded", () => {
   mostrarPedidos();
   iniciarEscuchaEventosCocina();

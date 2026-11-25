@@ -14,36 +14,71 @@
 
     <div class="max-w-7xl mx-auto px-4 py-6">
 
-        <!-- Header -->
-        <header class="bg-white rounded-3xl shadow-md p-6 mb-6">
-            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
-                <div class="flex items-center gap-4">
-                    <img src="../img/Log.png" alt="Logo MenuGo" class="w-20 h-20 object-contain">
-                    <div>
-                        <h1 class="text-3xl font-extrabold text-gray-800">Panel de Cocina</h1>
-                        <p class="text-gray-500">Pedidos recibidos para preparación</p>
-                    </div>
+<!-- Header profesional de Cocina -->
+<header class="mb-6 overflow-hidden rounded-[2rem] bg-slate-950 text-white shadow-2xl shadow-slate-900/10">
+    <div class="relative p-5 sm:p-7">
+        <div class="absolute -right-16 -top-20 h-48 w-48 rounded-full bg-orange-500/20 blur-3xl"></div>
+
+        <div class="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+
+            <div class="flex items-center gap-4">
+                <div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white shadow-lg sm:h-20 sm:w-20">
+                    <img src="../img/Log.png"
+                         alt="Logo MenuGo"
+                         class="h-14 w-14 object-contain sm:h-16 sm:w-16">
                 </div>
 
-                <div class="flex flex-wrap items-center gap-3">
-                    <div class="bg-orange-50 border border-orange-200 text-orange-800 px-5 py-3 rounded-2xl font-semibold text-xs leading-relaxed max-w-xs shadow-sm">
-                        ⚠️ Al marcar un pedido como listo, aparecerá de inmediato en el panel del mesero.
-                    </div>
-                    <button id="btn-actualizar-cocina" type="button" onclick="recargarCocina()" class="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-5 py-3 rounded-2xl font-bold text-xs shadow-lg transition transform active:scale-95">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-                        Actualizar
-                    </button>
-                <div class="bg-orange-100 text-orange-700 px-4 py-3 rounded-2xl font-semibold text-sm">
-                    Cuando marques un pedido como listo, recién será visible para el mesero.
+                <div>
+                    <span class="mb-2 inline-flex rounded-full bg-orange-500/15 px-3 py-1 text-[11px] font-black uppercase tracking-widest text-orange-300">
+                        Área de cocina
+                    </span>
+
+                    <h1 class="text-3xl font-black tracking-tight sm:text-4xl">
+                        Panel de Cocina
+                    </h1>
+
+                    <p class="mt-1 text-sm font-medium text-slate-300 sm:text-base">
+                        Organiza, prepara y entrega los pedidos.
+                    </p>
+                </div>
+            </div>
+
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+
+                <div class="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                        Sistema MenuGo
+                    </p>
+                    <p class="mt-1 text-sm font-bold text-white">
+                        Gestión de pedidos
+                    </p>
                 </div>
 
-                <button id="btn-logout" class="bg-red-50 text-red-600 border border-red-200 hover:bg-red-100 hover:text-red-700 px-5 py-3 rounded-2xl font-bold text-sm transition whitespace-nowrap">
-                        Cerrar Sesión
+                <button id="btn-actualizar-cocina"
+                        type="button"
+                        onclick="recargarCocina()"
+                        class="inline-flex items-center justify-center gap-2 rounded-2xl bg-orange-500 px-5 py-3 text-sm font-black text-white shadow-lg transition hover:bg-orange-400 active:scale-95">
+                    ↻ Actualizar
                 </button>
 
+
             </div>
-        </header>
+        </div>
+
+        <div class="relative mt-6 flex flex-col gap-3 border-t border-white/10 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-sm font-medium text-slate-300">
+                ⚠️ Al marcar un pedido como listo, aparecerá en el panel del mesero.
+            </p>
+
+            <span class="inline-flex w-fit items-center gap-2 rounded-full bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-300">
+                <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+                Área de preparación
+            </span>
+        </div>
+    </div>
+</header>
+
 
         <!-- Barra de Filtros Interactivos Mejorada -->
         <section class="bg-white rounded-3xl shadow-xl p-5 mb-8 border border-slate-100">
@@ -90,23 +125,117 @@
 </div>
             </div>
         </section>
+<!-- Resumen visual de pedidos de cocina -->
+<section aria-label="Resumen de pedidos" class="mb-8">
+    <div class="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <span class="text-xs font-black uppercase tracking-[0.2em] text-orange-600">
+                Centro de operaciones
+            </span>
+            <h2 class="mt-1 text-2xl font-black tracking-tight text-slate-900">
+                Resumen de pedidos
+            </h2>
+            <p class="mt-1 text-sm font-medium text-slate-500">
+                Estado actual de los pedidos de cocina.
+            </p>
+        </div>
 
-        <section aria-label="Resumen de pedidos"
-    class="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6">
-
-    <div class="rounded-2xl border border-slate-200 bg-white p-4">
-        <p class="text-sm font-bold text-slate-600">Pendientes</p>
-        <p id="total-pendientes" class="text-3xl font-black text-slate-900">—</p>
+        <span class="w-fit rounded-full border border-slate-200 bg-white px-4 py-2 text-xs font-bold text-slate-600 shadow-sm">
+            Panel de control MenuGo
+        </span>
     </div>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
 
-    <div class="rounded-2xl border border-yellow-200 bg-yellow-50 p-4">
-        <p class="text-sm font-bold text-yellow-800">En preparación</p>
-        <p id="total-preparando" class="text-3xl font-black text-yellow-900">—</p>
-    </div>
+        <!-- Pedidos pendientes -->
+        <article class="group relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+            <div class="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-slate-100 transition group-hover:scale-125"></div>
 
-    <div class="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-        <p class="text-sm font-bold text-emerald-800">Listos</p>
-        <p id="total-listos" class="text-3xl font-black text-emerald-900">—</p>
+            <div class="relative flex items-start justify-between">
+                <div>
+                    <p class="text-sm font-bold text-slate-500">
+                        Pedidos pendientes
+                    </p>
+
+                    <p id="total-pendientes"
+                       class="mt-4 text-5xl font-black tracking-tight text-slate-900">
+                        —
+                    </p>
+
+                    <p class="mt-3 text-xs font-semibold text-slate-500">
+                        Esperando iniciar preparación
+                    </p>
+                </div>
+
+                <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-2xl">
+                    ⏳
+                </div>
+            </div>
+
+            <div class="relative mt-6 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div class="h-full w-full rounded-full bg-slate-400"></div>
+            </div>
+        </article>
+
+        <!-- Pedidos en preparación -->
+        <article class="group relative overflow-hidden rounded-3xl border border-amber-200 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+            <div class="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-amber-50 transition group-hover:scale-125"></div>
+
+            <div class="relative flex items-start justify-between">
+                <div>
+                    <p class="text-sm font-bold text-amber-700">
+                        En preparación
+                    </p>
+
+                    <p id="total-preparando"
+                       class="mt-4 text-5xl font-black tracking-tight text-amber-600">
+                        —
+                    </p>
+
+                    <p class="mt-3 text-xs font-semibold text-slate-500">
+                        Pedidos que se están elaborando
+                    </p>
+                </div>
+
+                <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-100 text-2xl">
+                    🔥
+                </div>
+            </div>
+
+            <div class="relative mt-6 h-1.5 overflow-hidden rounded-full bg-amber-100">
+                <div class="h-full w-full rounded-full bg-amber-400"></div>
+            </div>
+        </article>
+
+        <!-- Pedidos listos -->
+        <article class="group relative overflow-hidden rounded-3xl border border-emerald-200 bg-white p-6 shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-xl">
+            <div class="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-emerald-50 transition group-hover:scale-125"></div>
+
+            <div class="relative flex items-start justify-between">
+                <div>
+                    <p class="text-sm font-bold text-emerald-700">
+                        Pedidos listos
+                    </p>
+
+                    <p id="total-listos"
+                       class="mt-4 text-5xl font-black tracking-tight text-emerald-600">
+                        —
+                    </p>
+
+                    <p class="mt-3 text-xs font-semibold text-slate-500">
+                        Preparados para su entrega
+                    </p>
+                </div>
+
+                <div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-100 text-2xl">
+                    ✅
+                </div>
+            </div>
+
+            <div class="relative mt-6 h-1.5 overflow-hidden rounded-full bg-emerald-100">
+                <div class="h-full w-full rounded-full bg-emerald-500"></div>
+            </div>
+        </article>
+
     </div>
 </section>
         <form onsubmit="event.preventDefault(); buscarPedidosCocina();"
